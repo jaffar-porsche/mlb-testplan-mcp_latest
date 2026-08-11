@@ -1,0 +1,913 @@
+import re
+import os
+import httpx
+from fastapi import FastAPI, Query
+from fastapi_mcp import FastApiMCP
+from dotenv import load_dotenv
+
+"""xRay FAIL Report — single endpoint that retrieves all FAIL test results with KPM IDs.
+
+Handles both issue types automatically:
+- Test Plan  → JQL testrunstatus query, paginate testruns, extract run details
+- Test (single) → find all linked test executions, get run details for each
+"""
+import re
+import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Optional
+
+from fastapi import APIRouter, HTTPException
+
+
+
+logger = logging.getLogger(__name__)
+router = APIRouter(tags=["xRay - FAIL Report"])
+
+# Max pages to scan when paginating test runs (100 runs/page = 2000 max)
+_MAX_PAGES = 20
+# Max parallel threads for fetching run details
+_MAX_WORKERS = 10
+
+# KPM patterns to search in run comments / actual results
+_KPM_PATTERNS = [
+    re.compile(r"[Kk][Pp][Mm]\s*[:\-–]\s*(?:\[.*?\])?\s*(\d{7,})", re.IGNORECASE),
+    re.compile(r"[Kk][Pp][Mm]\s*[Pp]roblem\s*[-–]?\s*(\d{7,})", re.IGNORECASE),
+    re.compile(r"kpmweb[^\s]*[?&]id=(\d{7,})", re.IGNORECASE),
+    re.compile(r"\bKPM\b\s+(\d{7,})"),
+]
+
+load_dotenv()
+
+XRAY_BASE_URL = os.getenv("XRAY_BASE_URL", "http://localhost:8000")
+LOCAL_API_URL  = os.getenv("LOCAL_API_URL",  "http://localhost:8001")
+CONFLUENCE_PAGE_ID = os.getenv("CONFLUENCE_PAGE_ID", "2378907792")
+PROXY = os.getenv("HTTP_PROXY", "http://http-proxy.porsche.org:3133")
+
+ALIASES = {
+    # ==========================================================
+    # TEST RESULTS / STATUS
+    # ==========================================================
+    "pass": "PASS",
+    "passed": "PASS",
+    "passing": "PASS",
+    "successful": "PASS",
+    "success": "PASS",
+    "ok": "PASS",
+    "green": "PASS",
+
+    "fail": "FAIL",
+    "failed": "FAIL",
+    "failure": "FAIL",
+    "failures": "FAIL",
+    "failing": "FAIL",
+    "error": "FAIL",
+    "errors": "FAIL",
+    "red": "FAIL",
+
+    "blocked": "BLOCKED",
+    "block": "BLOCKED",
+    "blocking": "BLOCKED",
+
+    "aborted": "ABORTED",
+    "abort": "ABORTED",
+    "aborting": "ABORTED",
+    "cancelled": "ABORTED",
+    "canceled": "ABORTED",
+    "terminated": "ABORTED",
+
+    "todo": "ToDo",
+    "to do": "ToDo",
+    "to-do": "ToDo",
+    "pending": "ToDo",
+    "not started": "ToDo",
+    "notstarted": "ToDo",
+
+    "executing": "Executing",
+    "execute": "Executing",
+    "execution": "Executing",
+    "running": "Executing",
+    "run": "Executing",
+    "in progress": "Executing",
+    "processing": "Executing",
+    "active": "Executing",
+
+    # ==========================================================
+    # REGIONS / MARKETS
+    # ==========================================================
+    # Europe
+    "ece": "Testing ECE",
+    "eu": "Testing ECE",
+    "europe": "Testing ECE",
+    "european": "Testing ECE",
+    "emea": "Testing ECE",
+
+    # North America
+    "nar": "Testing NAR",
+    "na": "Testing NAR",
+    "north america": "Testing NAR",
+    "north american": "Testing NAR",
+    "america": "Testing NAR",
+    "usa": "Testing NAR",
+    "us": "Testing NAR",
+    "united states": "Testing NAR",
+    "canada": "Testing NAR",
+
+    # Japan
+    "jpn": "Testing JPN",
+    "jp": "Testing JPN",
+    "japan": "Testing JPN",
+    "japanese": "Testing JPN",
+
+    # Korea
+    "kor": "Testing KOR",
+    "kr": "Testing KOR",
+    "korea": "Testing KOR",
+    "south korea": "Testing KOR",
+    "korean": "Testing KOR",
+
+    # Taiwan
+    "twn": "Testing TWN",
+    "tw": "Testing TWN",
+    "taiwan": "Testing TWN",
+    "taipei": "Testing TWN",
+    "taiwanese": "Testing TWN",
+    "twan": "Testing TWN",      # typo found in HTML
+
+    # Hong Kong
+    "hk": "Testing Hong-Kong",
+    "hkg": "Testing Hong-Kong",
+    "hong kong": "Testing Hong-Kong",
+    "hong-kong": "Testing Hong-Kong",
+    "hongkong": "Testing Hong-Kong",
+
+    # Macau
+    "macau": "Testing Macau",
+    "macao": "Testing Macau",
+    "mo": "Testing Macau",
+
+    # ==========================================================
+    # WORKSTREAMS
+    # ==========================================================
+    "applications": "WS Applications",
+    "application": "WS Applications",
+    "app": "WS Applications",
+    "apps": "WS Applications",
+    "ws applications": "WS Applications",
+    "ws apps": "WS Applications",
+
+    "platform": "WS Platform",
+    "ws platform": "WS Platform",
+    "platform ws": "WS Platform",
+
+    "system": "WS System",
+    "systems": "WS System",
+    "ws system": "WS System",
+    "system ws": "WS System",
+
+    # ==========================================================
+    # WORKING GROUPS
+    # ==========================================================
+    # Navigation
+    "navigation": "Navigation",
+    "nav": "Navigation",
+    "maps": "Navigation",
+    "map": "Navigation",
+
+    # Phone Connectivity SPI
+    "phone": "Phone-Connectivity-SPI",
+    "phone connectivity": "Phone-Connectivity-SPI",
+    "phone-connectivity": "Phone-Connectivity-SPI",
+    "phone connectivity spi": "Phone-Connectivity-SPI",
+    "phone-connectivity-spi": "Phone-Connectivity-SPI",
+    "[phone-connectivity]-spi": "Phone-Connectivity-SPI",
+    "connectivity": "Phone-Connectivity-SPI",
+    "mobile connectivity": "Phone-Connectivity-SPI",
+    "spi": "Phone-Connectivity-SPI",
+
+    # Core HMI / GBK
+    "hmi": "Core HMI / GBK",
+    "core hmi": "Core HMI / GBK",
+    "core": "Core HMI / GBK",
+    "gbk": "Core HMI / GBK",
+    "gui": "Core HMI / GBK",
+    "human machine interface": "Core HMI / GBK",
+
+    # Media / Tuner
+    "media": "Media / Tuner (Entertainment)",
+    "media tuner": "Media / Tuner (Entertainment)",
+    "media/tuner": "Media / Tuner (Entertainment)",
+    "tuner": "Media / Tuner (Entertainment)",
+    "radio": "Media / Tuner (Entertainment)",
+    "audio": "Media / Tuner (Entertainment)",
+    "music": "Media / Tuner (Entertainment)",
+    "entertainment": "Media / Tuner (Entertainment)",
+    "infotainment": "Media / Tuner (Entertainment)",
+
+    # App Store / 3rd Party
+    "app store": "App Store / 3rd Party",
+    "appstore": "App Store / 3rd Party",
+    "apps store": "App Store / 3rd Party",
+    "third party": "App Store / 3rd Party",
+    "3rd party": "App Store / 3rd Party",
+    "third-party": "App Store / 3rd Party",
+    "3rd-party": "App Store / 3rd Party",
+    "3p": "App Store / 3rd Party",
+    "external apps": "App Store / 3rd Party",
+    "external": "App Store / 3rd Party",
+}
+
+PRODUCT_OWNERS = [
+    "Hans Georg Wahl", "Deepak Illoth Veetil", "Elena Florez",
+    "Martin Melle", "Regina Haeussermann",
+]
+
+METADATA = ["Total Scope", "Orphans", "Not Yet Planned", "Planned"]
+
+def get_client(timeout=30):
+    return httpx.Client(proxy=PROXY, timeout=timeout, verify=False)
+
+def get_local_client(timeout=30):
+    transport = httpx.HTTPTransport(proxy=None)
+    return httpx.Client(
+        timeout=timeout,
+        verify=False,
+        transport=transport,
+        trust_env=False
+    )
+app = FastAPI(title="MLB TestPlan MCP", version="1.0.0")
+
+# -- Tool 1: Parse keywords ----------------------------------------------------
+
+# @app.get("/parse-keywords", operation_id="parse_keywords",
+#          summary="Step 1: Parse user prompt and extract canonical keywords")
+# def parse_keywords(prompt: str = Query(..., description="Raw user prompt")):
+#     prompt_lower = prompt.lower()
+#     result = {
+#         "raw_prompt": prompt,
+#         "workstream": None,
+#         "working_group": None,
+#         "product_owner": None,
+#         "location": None,
+#         "metadata": None,
+#         "status": None,
+#         "test_plan_key": None,
+#         "kpm_id": None,
+#         "free_text": [],
+#     }
+#     matched_terms = set()
+#     for alias, canonical in ALIASES.items():
+#         if alias.lower() in prompt_lower:
+#             matched_terms.add(alias.lower())
+#             if canonical in ("WS Applications", "WS Platform", "WS System"):
+#                 result["workstream"] = canonical
+#             elif canonical.startswith("Testing "):
+#                 result["location"] = canonical
+#             elif canonical in ("PASS","FAIL","BLOCKED","ABORTED","TODO","EXECUTING"):
+#                 result["status"] = canonical
+#             elif canonical in ("Total Scope","Orphans","Not Yet Planned","Planned"):
+#                 result["metadata"] = canonical
+#             else:
+#                 result["working_group"] = canonical
+#     for owner in PRODUCT_OWNERS:
+#         if owner.lower() in prompt_lower:
+#             result["product_owner"] = owner
+#             matched_terms.add(owner.lower())
+#             break
+#     for item in METADATA:
+#         if item.lower() in prompt_lower:
+#             result["metadata"] = item
+#             matched_terms.add(item.lower())
+#     kpm_match = re.search(r"\bKPM-\d+\b", prompt, re.IGNORECASE)
+#     if kpm_match:
+#         result["kpm_id"] = kpm_match.group(0).upper()
+#     jira_matches = re.findall(r"\b[A-Z][A-Z0-9]+-\d+\b", prompt)
+#     for key in jira_matches:
+#         if not key.upper().startswith("KPM-"):
+#             result["test_plan_key"] = key
+#             break
+#     reserved = set(a.lower() for a in ALIASES.keys())
+#     reserved.update({"pass","fail","blocked","aborted","todo","executing","total","scope","orphans","not","yet","planned"})
+#     for owner in PRODUCT_OWNERS:
+#         reserved.update(owner.lower().split())
+#     tokens = re.findall(r"\b[\w/-]+\b", prompt)
+#     free_text = []
+#     for token in tokens:
+#         if re.fullmatch(r"[A-Z][A-Z0-9]+-\d+", token):
+#             continue
+#         if token.lower() in reserved:
+#             continue
+#         free_text.append(token)
+#     result["free_text"] = free_text
+#     return result
+# -------------------------------------------------------------------
+# Add this once after your ALIASES dict
+# -------------------------------------------------------------------
+
+ALIASES.update({
+    # Metadata variants from HTML
+    "total scope": "Total Scope",
+    "total": "Total Scope",
+
+    "orphans": "Orphans",
+    "orphan": "Orphans",
+
+    "planned": "Planned",
+    "plan": "Planned",
+
+    "not yet planned": "Not Yet Planned",
+    "not yet in planned": "Not Yet Planned",
+    "not planned": "Not Yet Planned",
+})
+
+STATUS_VALUES = {
+    "PASS",
+    "FAIL",
+    "BLOCKED",
+    "ABORTED",
+    "ToDo",
+    "Executing",
+}
+
+WORKSTREAM_VALUES = {
+    "WS Applications",
+    "WS Platform",
+    "WS System",
+}
+
+METADATA_VALUES = {
+    "Total Scope",
+    "Orphans",
+    "Not Yet Planned",
+    "Planned",
+}
+
+
+def normalize_text(text: str) -> str:
+    """
+    Normalize user input while preserving spaces.
+    """
+    text = text.lower()
+    text = text.replace("_", " ")
+    text = re.sub(r"[-/()\[\]]", " ", text)
+    text = re.sub(r"\s+", " ", text)
+    return text.strip()
+
+
+@app.get(
+    "/parse-keywords",
+    operation_id="parse_keywords",
+    summary="Parse natural language into canonical filters",
+)
+def parse_keywords(prompt: str = Query(...)):
+    normalized = normalize_text(prompt)
+
+    result = {
+        "raw_prompt": prompt,
+        "workstream": None,
+        "working_group": None,
+        "product_owner": None,
+        "location": None,
+        "metadata": None,
+        "status": None,
+        "test_plan_key": None,
+        "kpm_id": None,
+        "free_text": [],
+    }
+
+    matched_spans = []
+
+    # Longest aliases first
+    sorted_aliases = sorted(
+        ALIASES.items(),
+        key=lambda x: len(normalize_text(x[0])),
+        reverse=True,
+    )
+
+    for alias, canonical in sorted_aliases:
+        alias_norm = normalize_text(alias)
+
+        pattern = r"(?<!\w)" + re.escape(alias_norm) + r"(?!\w)"
+
+        if not re.search(pattern, normalized):
+            continue
+
+        matched_spans.append(alias_norm)
+
+        if canonical in WORKSTREAM_VALUES:
+            if result["workstream"] is None:
+                result["workstream"] = canonical
+
+        elif canonical.startswith("Testing "):
+            if result["location"] is None:
+                result["location"] = canonical
+
+        elif canonical in STATUS_VALUES:
+            if result["status"] is None:
+                result["status"] = canonical
+
+        elif canonical in METADATA_VALUES:
+            if result["metadata"] is None:
+                result["metadata"] = canonical
+
+        else:
+            if result["working_group"] is None:
+                result["working_group"] = canonical
+
+    # Product Owner
+    for owner in PRODUCT_OWNERS:
+        owner_norm = normalize_text(owner)
+        pattern = r"(?<!\w)" + re.escape(owner_norm) + r"(?!\w)"
+        if re.search(pattern, normalized):
+            result["product_owner"] = owner
+            matched_spans.append(owner_norm)
+            break
+
+    # KPM IDs
+    m = re.search(r"\bKPM-\d+\b", prompt, re.IGNORECASE)
+    if m:
+        result["kpm_id"] = m.group(0).upper()
+
+    # Jira IDs
+    jira = re.findall(r"\b[A-Z][A-Z0-9]+-\d+\b", prompt, re.IGNORECASE)
+    for item in jira:
+        if not item.upper().startswith("KPM-"):
+            result["test_plan_key"] = item.upper()
+            break
+
+    # Remove matched phrases
+    cleaned = normalized
+
+    for phrase in sorted(matched_spans, key=len, reverse=True):
+        cleaned = re.sub(
+            r"(?<!\w)" + re.escape(phrase) + r"(?!\w)",
+            " ",
+            cleaned,
+        )
+
+    # Remove product owner
+    if result["product_owner"]:
+        cleaned = re.sub(
+            re.escape(normalize_text(result["product_owner"])),
+            " ",
+            cleaned,
+        )
+
+    # Remove IDs
+    cleaned = re.sub(r"\bKPM-\d+\b", " ", cleaned, flags=re.IGNORECASE)
+    cleaned = re.sub(r"\b[A-Z][A-Z0-9]+-\d+\b", " ", cleaned, flags=re.IGNORECASE)
+
+    cleaned = re.sub(r"\s+", " ", cleaned).strip()
+
+    if cleaned:
+        result["free_text"] = cleaned.split()
+
+    return result
+
+# -- Tool 2: Confluence page ---------------------------------------------------
+
+# NEW
+@app.get("/confluence/page/{page_id}", operation_id="get_confluence_page",
+         summary="Step 2: ja_Retrieve Test Plan SOP page from Confluence")
+def get_confluence_page(page_id: str = CONFLUENCE_PAGE_ID):
+    with get_local_client(timeout=30) as client:
+        resp = client.get(f"{LOCAL_API_URL}/page/{page_id}")
+        if resp.status_code == 301 or resp.status_code == 302:
+            redirect_url = resp.headers.get("location")
+            resp = client.get(redirect_url)
+        resp.raise_for_status()
+        data = resp.json()
+        return {
+            "id": data.get("id"),
+            "title": data.get("title"),
+            "space": data.get("space"),
+            "version": data.get("version"),
+            "body": data.get("body"),
+            "url": data.get("url"),
+        }
+
+# -- Tool 3: Get failed tests --------------------------------------------------
+# ── Tool 3: Get failed tests (via testplan tests endpoint) ────────────────────
+
+@app.get("/testplan/{test_plan_key}/failed-tests", operation_id="get_failed_tests",
+         summary="Step 3: Get all tests with latestStatus=FAIL from Xray")
+def get_failed_tests(test_plan_key: str):
+    all_tests = []
+    with get_local_client(timeout=60) as client:
+        for page in range(1, 20):
+            resp = client.get(
+                f"{XRAY_BASE_URL}/xray/testplan/{test_plan_key}/tests",
+                params={"page": page, "limit": 100}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            # extract items same as your extract_items helper
+            if isinstance(data, list):
+                items = data
+            elif isinstance(data, dict):
+                items = next(
+                    (data[k] for k in ("tests","testExecutions","data","results","items")
+                     if isinstance(data.get(k), list)), []
+                )
+            else:
+                items = []
+            if not items:
+                break
+            all_tests.extend(items)
+            if len(items) < 100:
+                break
+
+    def get_status(item):
+        status = item.get("latestStatus") or item.get("status")
+        if isinstance(status, str):
+            return status.upper()
+        if isinstance(status, dict):
+            return (status.get("name") or status.get("value") or status.get("key") or "").upper()
+        return ""
+
+    def get_key(item):
+        return (
+            item.get("testKey") or item.get("key") or item.get("issueKey")
+            or (item.get("test") or {}).get("key")
+            or (item.get("test") or {}).get("testKey")
+        )
+
+    failed = [t for t in all_tests if get_status(t) == "FAIL"]
+    return {
+        "test_plan_key": test_plan_key,
+        "total_fetched": len(all_tests),
+        "total_failed": len(failed),
+        "failed_keys": [get_key(t) for t in failed],
+        "failed_tests": failed,
+    }
+
+
+# ── Tool 4: Get test executions for a test plan ───────────────────────────────
+
+@app.get("/testplan/{test_plan_key}/executions", operation_id="get_test_plan_executions",
+         summary="Step 4: Get all Test Execution keys linked to a Test Plan")
+def get_test_plan_executions(test_plan_key: str):
+    all_executions = []
+    with get_local_client(timeout=60) as client:
+        for page in range(1, 20):
+            resp = client.get(
+                f"{XRAY_BASE_URL}/xray/testplan/{test_plan_key}/testexecutions",
+                params={"page": page, "limit": 100}
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            if isinstance(data, list):
+                items = data
+            elif isinstance(data, dict):
+                items = next(
+                    (data[k] for k in ("tests","testExecutions","data","results","items")
+                     if isinstance(data.get(k), list)), []
+                )
+            else:
+                items = []
+            if not items:
+                break
+            all_executions.extend(items)
+            if len(items) < 100:
+                break
+
+    exec_keys = [
+        item.get("key") or item.get("testExecKey") or item.get("testExecutionKey")
+        for item in all_executions
+    ]
+    return {
+        "test_plan_key": test_plan_key,
+        "total_executions": len(all_executions),
+        "execution_keys": [k for k in exec_keys if k],
+    }
+
+
+# ── Tool 5: Map failed test keys to run IDs via xray_get_test_runs ───────────
+#Jaf final use
+@app.get("/testplan/{test_plan_key}/map-failed-runs", operation_id="map_failed_runs",
+         summary="Step 5: Paginate all test runs and map failed test keys to run IDs")
+def map_failed_runs(test_plan_key: str):
+    # First get failed keys
+    failed_result = get_failed_tests(test_plan_key)
+    failed_keys = set(failed_result["failed_keys"])
+
+    if not failed_keys:
+        return {"message": "No FAIL tests found.", "test_plan_key": test_plan_key}
+
+    # Paginate all runs with testPlanKey
+    run_map = {}  # test_key -> {run_id, test_exec_key}
+    with get_local_client(timeout=60) as client:
+        for page in range(1, 20):
+            resp = client.get(
+                f"{XRAY_BASE_URL}/xray/testruns",
+                params={"testPlanKey": test_plan_key, "page": page, "limit": 100}
+            )
+            if resp.status_code != 200:
+                break
+            data = resp.json()
+            if isinstance(data, list):
+                runs = data
+            elif isinstance(data, dict):
+                runs = next(
+                    (data[k] for k in ("tests","testExecutions","data","results","items")
+                     if isinstance(data.get(k), list)), []
+                )
+            else:
+                runs = []
+            if not runs:
+                break
+            for run in runs:
+                test_key = (
+                    run.get("testKey") or run.get("key") or run.get("issueKey")
+                    or (run.get("test") or {}).get("key")
+                )
+                if test_key in failed_keys:
+                    run_map[test_key] = {
+                        "run_id": run.get("id"),
+                        "test_exec_key": run.get("testExecKey") or run.get("testExecutionKey"),
+                        "status": run.get("status"),
+                    }
+            if len(runs) < 100:
+                break
+    unique_test_exec_keys = list({data["test_exec_key"] for data in run_map.values()})
+
+    return {
+        "test_plan_key": test_plan_key,
+        "total_failed": len(failed_keys),
+        "mapped": len(run_map),
+        "run_map": run_map,#
+        "test_exec_keys": unique_test_exec_keys,
+        "test_exec_key_count": len(unique_test_exec_keys),
+    }
+
+
+# ── Tool 6: Get run details + KPM comments for all failed runs ────────────────
+
+@app.get("/testplan/{test_plan_key}/analyze", operation_id="analyze_failed_tests_with_kpms",
+         summary="Steps 3-6 combined: all FAILs → executions → run IDs → KPM comments")
+def analyze_failed_tests_with_kpms(test_plan_key: str):
+    try:
+        # Step 3: get failed keys
+        failed_result = get_failed_tests(test_plan_key)
+        failed_keys = set(failed_result["failed_keys"])
+        if not failed_keys:
+            return {"message": "No FAIL tests found.", "test_plan_key": test_plan_key}
+
+        # Step 5: map failed keys to run IDs by paginating testruns
+        run_map = {}
+        with get_local_client(timeout=60) as client:
+            for page in range(1, 20):
+                resp = client.get(
+                    f"{XRAY_BASE_URL}/xray/testruns",
+                    params={"testPlanKey": test_plan_key, "page": page, "limit": 100}
+                )
+                if resp.status_code != 200:
+                    break
+                data = resp.json()
+                if isinstance(data, list):
+                    runs = data
+                elif isinstance(data, dict):
+                    runs = next(
+                        (data[k] for k in ("tests","testExecutions","data","results","items")
+                         if isinstance(data.get(k), list)), []
+                    )
+                else:
+                    runs = []
+                if not runs:
+                    break
+                for run in runs:
+                    test_key = (
+                        run.get("testKey") or run.get("key") or run.get("issueKey")
+                        or (run.get("test") or {}).get("key")
+                    )
+                    if test_key in failed_keys and test_key not in run_map:
+                        run_map[test_key] = {
+                            "run_id": run.get("id"),
+                            "test_exec_key": run.get("testExecKey") or run.get("testExecutionKey"),
+                        }
+                if len(runs) < 100:
+                    break
+
+        # Step 6: get run details + extract KPM from comment
+        results = []
+        errors = []
+        with get_local_client(timeout=30) as client:
+            for test_key, run_info in run_map.items():
+                run_id = run_info.get("run_id")
+                if not run_id:
+                    errors.append({"test_key": test_key, "error": "No run_id found"})
+                    continue
+                try:
+                    resp = client.get(f"{XRAY_BASE_URL}/xray/testrun/{run_id}")
+                    resp.raise_for_status()
+                    detail = resp.json()
+
+                    # extract comment
+                    comment = detail.get("comment")
+                    if isinstance(comment, dict):
+                        comment = comment.get("value") or comment.get("text") or ""
+                    comment = comment or ""
+
+                    # extract status
+                    status = detail.get("status")
+                    if isinstance(status, dict):
+                        status = status.get("name") or status.get("value") or status.get("key")
+
+                    # extract KPM IDs
+                    kpm_ids = []
+                    for pattern in [
+                        r"KPM[:\s#-]+(\d+)",
+                        r"KPM Problem\s*-\s*(\d+)",
+                        r"kpmweb[^\s]*id=(\d+)",
+                        r"\bKPM-(\d+)\b",
+                    ]:
+                        kpm_ids.extend(re.findall(pattern, comment, re.IGNORECASE))
+
+                    results.append({
+                        "test_key": test_key,
+                        "run_id": run_id,
+                        "test_exec_key": run_info.get("test_exec_key"),
+                        "status": status,
+                        "comment": comment,
+                        "kpm_ids": list(set(kpm_ids)),
+                    })
+                except Exception as e:
+                    errors.append({"test_key": test_key, "run_id": run_id, "error": str(e)})
+
+        # build KPM summary
+        
+        kpm_summary = {}
+        for r in results:
+            for kpm in r.get("kpm_ids", []):
+                kpm_summary.setdefault(kpm, []).append(r["test_key"])
+        unique_test_exec_keys = list({data["test_exec_key"] for data in run_map.values()})
+
+        return {
+            "test_plan_key": test_plan_key,
+            "total_failed": len(failed_keys),
+            "total_mapped": len(run_map),
+            "results": results,
+            "errors": errors,
+            "kpm_summary": kpm_summary,
+        }
+
+    except Exception as e:
+        return {"error": f"Pipeline failed: {str(e)}", "test_plan_key": test_plan_key}
+# ── Tool 7: Get KPM comments using Test Execution Key + Test Key ─────────────
+#Jaf final use
+@app.get(
+    "/testplan/{test_plan_key}/kpm-comments",
+    operation_id="get_failed_test_kpm_comments",
+    summary="Get KPM comments for all failed tests using testExecIssueKey + testIssueKey",
+)
+def get_failed_test_kpm_comments(test_plan_key: str):
+    try:
+        # Reuse Tool 5 to get failed test -> execution mapping
+        mapping = map_failed_runs(test_plan_key)
+
+        run_map = mapping.get("run_map", {})
+        if not run_map:
+            return {
+                "test_plan_key": test_plan_key,
+                "message": "No failed tests found.",
+                "results": [],
+            }
+
+        results = []
+        errors = []
+        test_exec_summary = {}
+        with get_local_client(timeout=30) as client:
+            for test_key, info in run_map.items():
+
+                test_exec_key = info.get("test_exec_key")
+                if not test_exec_key:
+                    errors.append({
+                        "test_key": test_key,
+                        "error": "Missing test_exec_key"
+                    })
+                    continue
+
+                try:
+                    resp = client.get(
+                        f"{XRAY_BASE_URL}/xray/testrun",
+                        params={
+                            "testExecIssueKey": test_exec_key,
+                            "testIssueKey": test_key,
+                        },
+                    )
+                    resp.raise_for_status()
+
+                    detail = resp.json()
+
+                    # Extract status
+                    status = detail.get("status")
+                    if isinstance(status, dict):
+                        status = (
+                            status.get("name")
+                            or status.get("value")
+                            or status.get("key")
+                        )
+
+                    # Extract comment
+                    # comment = detail.get("comment", "")
+                    # if isinstance(comment, dict):
+                    #     comment = (
+                    #         comment.get("value")
+                    #         or comment.get("text")
+                    #         or ""
+                    #     )
+                    # #comment = comment or ""
+                    # comment = (comment or "").strip()
+                    # if not comment:
+                    #     continue
+
+
+
+                    # Extract KPM IDs
+                    # kpm_ids = sorted(set(
+                    #     re.findall(r"\bKPM-\d+\b", comment, re.IGNORECASE)
+                    # # ))
+                    # matches = re.findall(r"\b(?:KPM-\d+|\d{8})\b", comment, re.IGNORECASE)
+                    # kpm_ids = sorted(set(matches))
+                    # Extract comment
+                    comment = detail.get("comment", "")
+                    if isinstance(comment, dict):
+                        comment = (
+                            comment.get("value")
+                            or comment.get("text")
+                            or ""
+                        )
+
+                    comment = str(comment).strip()
+
+                    # Extract all 8-digit KPM ticket numbers
+                    kpm_ids = re.findall(r"(?<!\d)(\d{8})(?!\d)", comment)
+
+                    # Remove duplicates while preserving order
+                    kpm_ids = list(dict.fromkeys(kpm_ids))
+
+                    print(
+                        f"TEST={test_key} "
+                        f"EXEC={test_exec_key} "
+                        f"COMMENT={repr(comment)} "
+                        f"KPM_IDS={kpm_ids}"
+                    )
+                    if comment:
+                        test_exec_summary[test_exec_key] = {
+                            "comment": comment,
+                            "kpm_ids": kpm_ids,
+                        }
+                    test_exec_comments = [
+                        {
+                            "test_exec_key": r["test_exec_key"],
+                            "comment": r["comment"],
+                            "kpm_ids": r["kpm_ids"],
+                        }
+                        for r in results
+                        if r["comment"]
+                    ]
+                                        # results.append({
+                    #     "test_key": test_key,
+                    #     "test_exec_key": test_exec_key,
+                    #     "status": status,
+                    #     "comment": comment,
+                    #     "kpm_ids": kpm_ids,
+                    # })
+                    results.append({
+                    "test_key": test_key,
+                    "test_exec_key": test_exec_key,
+                    "status": status,
+                    "comment": comment,
+                    "comment_length": len(comment),
+                    "kpm_ids": kpm_ids,
+                })
+                except Exception as e:
+                    errors.append({
+                        "test_key": test_key,
+                        "test_exec_key": test_exec_key,
+                        "error": str(e),
+                    })
+
+        return {
+            "test_plan_key": test_plan_key,
+            "total_failed": mapping.get("total_failed", 0),
+            "total_checked": len(results),
+            "test_exec_comments": test_exec_comments,
+            "results": results,
+            "errors": errors,
+        }
+
+    except Exception as e:
+        return {
+            "test_plan_key": test_plan_key,
+            "error": str(e),
+        }
+
+ 
+# -- Mount MCP + run -----------------------------------------------------------
+# NEW
+mcp = FastApiMCP(app)
+mcp.mount(mount_path="/mcp")
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8080)

@@ -1,0 +1,54 @@
+services:
+  jira-mcp:
+    build:
+      context: .
+      dockerfile: jira-mcp/Dockerfile
+    container_name: mlb-jira-mcp
+    environment:
+      - PORT=8000
+      - JIRA_PAT=${JIRA_PAT}
+      - JIRA_BASE_URL=${JIRA_BASE_URL:-https://api.skyway.porsche.com/jira}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - CERT_PATH=${JIRA_CERT_PATH:-}
+      - CERT_PASSWORD=${JIRA_CERT_PASSWORD:-}
+    networks:
+      - mlb-network
+
+  confluence-mcp:
+    build:
+      context: .
+      dockerfile: confluence-mcp/Dockerfile
+    container_name: mlb-confluence-mcp
+    environment:
+      - PORT=8001
+      - CONFLUENCE_PAT=${CONFLUENCE_PAT}
+      - CONFLUENCE_BASE_URL=${CONFLUENCE_BASE_URL:-https://api.skyway.porsche.com/confluence}
+      - HTTP_PROXY=${HTTP_PROXY:-}
+      - HTTPS_PROXY=${HTTPS_PROXY:-}
+      - CERT_PATH=${CONFLUENCE_CERT_PATH:-}
+      - CERT_PASSWORD=${CONFLUENCE_CERT_PASSWORD:-}
+    networks:
+      - mlb-network
+
+  mlb-testplan:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mlb-testplan-mcp
+    ports:
+      - "8080:8080"
+    environment:
+      - XRAY_BASE_URL=http://jira-mcp:8000
+      - LOCAL_API_URL=http://confluence-mcp:8001
+      - JIRA_API_TOKEN=${JIRA_PAT}
+      - CONFLUENCE_PAGE_ID=${CONFLUENCE_PAGE_ID:-2378907792}
+    depends_on:
+      - jira-mcp
+      - confluence-mcp
+    networks:
+      - mlb-network
+
+networks:
+  mlb-network:
+    driver: bridge

@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Testplan SOP Dashboard — Porsche</title>
+
+  <!-- Porsche Next font -->
+  <link rel="preconnect" href="https://fonts.porsche.com" crossorigin />
+  <style>
+    @font-face {
+      font-family: '911Porscha';
+      src: url('911Porscha.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+    @font-face {
+      font-family: 'Porsche Next';
+      src: url('https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-w-la-semi-bold.min.woff2') format('woff2');
+      font-weight: 600; font-style: normal; font-display: swap;
+    }
+    @font-face {
+      font-family: 'Porsche Next';
+      src: url('https://cdn.ui.porsche.com/porsche-design-system/fonts/porsche-next-w-la-bold.min.woff2') format('woff2');
+      font-weight: 700; font-style: normal; font-display: swap;
+    }
+
+    /* ── Design tokens (Porsche Design System v3) ── */
+    :root {
+      --pds-color-primary:        #010205;
+      --pds-color-background:     #f2f2f2;
+      --pds-color-surface:        #ffffff;
+      --pds-color-brand:          #d5001c;
+      --pds-color-neutral-1:      #626669;
+      --pds-color-neutral-2:      #c9cacb;
+      --pds-color-neutral-3:      #e3e4e5;
+      --pds-color-neutral-4:      #f2f2f2;
+      --pds-color-success:        #018a16;
+      --pds-color-warning:        #ff9b00;
+      --pds-color-error:          #d5001c;
+      --pds-color-notification:   #0061bd;
+      --pds-border-radius:        0px;
+      --pds-border-radius-sm:     4px;
+      --pds-shadow-low:           0 2px 8px rgba(1,2,5,.08), 0 0 1px rgba(1,2,5,.06);
+      --pds-shadow-medium:        0 8px 24px rgba(1,2,5,.10), 0 0 1px rgba(1,2,5,.06);
+      --pds-transition:           cubic-bezier(0.25, 0.1, 0.25, 1);
+      --pds-font:                 'Porsche Next', 'Arial Narrow', Arial, sans-serif;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--pds-font);
+      background: var(--pds-color-background);
+      color: var(--pds-color-primary);
+      min-height: 100vh;
+    }
+
+    /* ── Global nav header (Porsche-style) ── */
+    .pds-header {
+      background: var(--pds-color-primary);
+      color: #fff;
+      padding: 0 48px;
+      height: 64px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      box-shadow: 0 1px 0 rgba(255,255,255,.08);
+    }
+    .pds-header__logo {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      text-decoration: none;
+    }
+    .pds-header__crest {
+      height: 28px;
+      width: auto;
+    }
+    .pds-header__wordmark {
+      font-family: '911Porscha', sans-serif;
+      font-size: 1.5rem;
+      font-weight: normal;
+      letter-spacing: 3px;
+      text-transform: uppercase;
+      color: #fff;
+      line-height: 1;
+    }
+    .pds-header__wordmark-sub {
+      font-family: 'Porsche Next', 'Arial Narrow', Arial, sans-serif;
+      font-size: 1.1rem;
+      font-weight: 300;
+      letter-spacing: 5px;
+      color: rgba(255,255,255,0.85);
+    }
+    .pds-header__divider {
+      width: 1px;
+      height: 20px;
+      background: rgba(255,255,255,.25);
+    }
+    .pds-header__title {
+      font-size: 0.75rem;
+      font-weight: 400;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: rgba(255,255,255,.7);
+    }
+    .pds-header__badge {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--pds-color-brand);
+      background: rgba(213,0,28,.12);
+      padding: 4px 10px;
+      border: 1px solid rgba(213,0,28,.3);
+    }
+
+    /* ── Page wrapper ── */
+    .pds-page {
+      max-width: 1040px;
+      margin: 0 auto;
+      padding: 40px 24px 64px;
+    }
+
+    /* ── Page title ── */
+    .pds-page-title {
+      font-size: clamp(1.5rem, 3vw, 2.2rem);
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: var(--pds-color-primary);
+      margin-bottom: 4px;
+    }
+    .pds-page-subtitle {
+      font-size: 0.9rem;
+      color: var(--pds-color-neutral-1);
+      margin-bottom: 40px;
+      font-weight: 400;
+    }
+    .pds-page-title span {
+      color: var(--pds-color-brand);
+    }
+
+    /* ── Card ── */
+    .card {
+      background: var(--pds-color-surface);
+      border: 1px solid var(--pds-color-neutral-3);
+      padding: 32px;
+      box-shadow: var(--pds-shadow-low);
+      margin-bottom: 24px;
+      transition: box-shadow .2s var(--pds-transition);
+    }
+    .card:hover {
+      box-shadow: var(--pds-shadow-medium);
+    }
+    .card h2 {
+      font-size: 1rem;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      color: var(--pds-color-primary);
+      margin-bottom: 20px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid var(--pds-color-neutral-3);
+    }
+    .card h2::before {
+      content: '';
+      display: block;
+      width: 3px;
+      height: 18px;
+      background: var(--pds-color-brand);
+      flex-shrink: 0;
+    }
+
+    /* ── Textarea ── */
+    textarea {
+      width: 100%;
+      min-height: 96px;
+      border: 1px solid var(--pds-color-neutral-2);
+      border-radius: var(--pds-border-radius-sm);
+      padding: 14px 16px;
+      font-family: var(--pds-font);
+      font-size: 0.95rem;
+      resize: vertical;
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+      outline: none;
+      color: var(--pds-color-primary);
+      background: var(--pds-color-surface);
+    }
+    textarea:focus {
+      border-color: var(--pds-color-primary);
+      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+    }
+    textarea::placeholder { color: var(--pds-color-neutral-2); }
+
+    /* ── Buttons (Porsche Design System style) ── */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      padding: 12px 24px;
+      border: 1px solid transparent;
+      border-radius: var(--pds-border-radius-sm);
+      font-family: var(--pds-font);
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      cursor: pointer;
+      transition: background .18s var(--pds-transition),
+                  color .18s var(--pds-transition),
+                  border-color .18s var(--pds-transition),
+                  transform .12s var(--pds-transition),
+                  box-shadow .18s var(--pds-transition);
+      white-space: nowrap;
+      position: relative;
+      overflow: hidden;
+    }
+    /* ripple */
+    .btn::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: rgba(255,255,255,.0);
+      transition: background .2s;
+    }
+    .btn:not(:disabled):active::after { background: rgba(255,255,255,.15); }
+
+    .btn:disabled { opacity: .38; cursor: not-allowed; transform: none !important; }
+    .btn:not(:disabled):hover { transform: translateY(-1px); }
+    .btn:not(:disabled):active { transform: translateY(0) scale(.99); }
+
+    /* Primary — solid black */
+    .btn-primary {
+      background: var(--pds-color-primary);
+      color: #fff;
+      border-color: var(--pds-color-primary);
+    }
+    .btn-primary:not(:disabled):hover {
+      background: #2a2b2e;
+      box-shadow: 0 4px 16px rgba(1,2,5,.22);
+    }
+
+    /* Brand — Porsche red */
+    .btn-brand {
+      background: var(--pds-color-brand);
+      color: #fff;
+      border-color: var(--pds-color-brand);
+    }
+    .btn-brand:not(:disabled):hover {
+      background: #b30018;
+      box-shadow: 0 4px 16px rgba(213,0,28,.30);
+    }
+
+    /* Secondary — outlined */
+    .btn-secondary {
+      background: transparent;
+      color: var(--pds-color-primary);
+      border-color: var(--pds-color-primary);
+    }
+    .btn-secondary:not(:disabled):hover {
+      background: var(--pds-color-primary);
+      color: #fff;
+    }
+
+    /* Danger */
+    .btn-danger {
+      background: var(--pds-color-error);
+      color: #fff;
+      border-color: var(--pds-color-error);
+    }
+    .btn-danger:not(:disabled):hover {
+      background: #b30018;
+      box-shadow: 0 4px 16px rgba(213,0,28,.30);
+    }
+
+    /* Warning */
+    .btn-warn {
+      background: transparent;
+      color: var(--pds-color-warning);
+      border-color: var(--pds-color-warning);
+    }
+    .btn-warn:not(:disabled):hover {
+      background: var(--pds-color-warning);
+      color: #fff;
+    }
+
+    .action-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+
+    /* ── Status banner ── */
+    .status {
+      display: none;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 18px;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-bottom: 20px;
+      border-left: 3px solid transparent;
+      transition: all .2s var(--pds-transition);
+    }
+    .status.show { display: flex; }
+    .status.loading {
+      background: #e8f0fc;
+      color: var(--pds-color-notification);
+      border-left-color: var(--pds-color-notification);
+    }
+    .status.success {
+      background: #e6f4e8;
+      color: var(--pds-color-success);
+      border-left-color: var(--pds-color-success);
+    }
+    .status.error {
+      background: #fce8eb;
+      color: var(--pds-color-error);
+      border-left-color: var(--pds-color-error);
+    }
+
+    /* ── Spinner ── */
+    .spinner {
+      width: 16px; height: 16px;
+      border: 2px solid currentColor;
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin .7s linear infinite;
+      flex-shrink: 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Tables ── */
+    .table-wrap { overflow-x: auto; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.855rem;
+    }
+    thead tr { background: var(--pds-color-neutral-4); }
+    th {
+      text-align: left;
+      padding: 11px 14px;
+      font-weight: 700;
+      color: var(--pds-color-neutral-1);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 2px solid var(--pds-color-neutral-3);
+    }
+    td {
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--pds-color-neutral-3);
+      vertical-align: top;
+      color: var(--pds-color-primary);
+      word-break: break-word;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: var(--pds-color-neutral-4); transition: background .15s; }
+
+    /* ── Badges ── */
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      padding: 3px 10px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      border-radius: 2px;
+    }
+    .badge-red    { background: rgba(213,0,28,.1);  color: var(--pds-color-error); }
+    .badge-green  { background: rgba(1,138,22,.1);  color: var(--pds-color-success); }
+    .badge-yellow { background: rgba(255,155,0,.12); color: #a65f00; }
+    .badge-gray   { background: var(--pds-color-neutral-3); color: var(--pds-color-neutral-1); }
+    .badge-blue   { background: rgba(0,97,189,.1);  color: var(--pds-color-notification); }
+
+    .empty {
+      color: var(--pds-color-neutral-1);
+      font-style: italic;
+      padding: 24px 0;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+
+    /* ── Summary pills ── */
+    .summary-pill {
+      background: var(--pds-color-neutral-4);
+      border: 1px solid var(--pds-color-neutral-3);
+      padding: 14px 20px;
+      min-width: 100px;
+    }
+    .summary-pill__label {
+      font-size: 0.65rem;
+      color: var(--pds-color-neutral-1);
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 6px;
+    }
+    .summary-pill__value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      line-height: 1;
+    }
+
+    /* ── kpm ── */
+    .kpm {
+      font-family: 'Courier New', monospace;
+      background: var(--pds-color-neutral-4);
+      border: 1px solid var(--pds-color-neutral-3);
+      padding: 2px 7px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: var(--pds-color-primary);
+      border-radius: 2px;
+    }
+    .badge-no-kpm {
+      background: var(--pds-color-neutral-3);
+      color: var(--pds-color-neutral-1);
+      border: 1px solid var(--pds-color-error);
+    }
+    .nested { font-size: 0.78rem; color: var(--pds-color-neutral-1); }
+
+    /* ── Placeholder ── */
+    #statusPlaceholder {
+      color: var(--pds-color-neutral-1);
+      font-size: 0.875rem;
+      padding: 8px 0;
+    }
+
+    /* ── Export strip ── */
+    .export-strip {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      padding: 16px 0;
+      border-bottom: 1px solid var(--pds-color-neutral-3);
+      margin-bottom: 20px;
+    }
+
+    /* ── Footer ── */
+    .pds-footer {
+      background: var(--pds-color-primary);
+      color: rgba(255,255,255,.45);
+      font-size: 0.72rem;
+      letter-spacing: 0.5px;
+      padding: 20px 48px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 40px;
+    }
+    .pds-footer a { color: rgba(255,255,255,.55); text-decoration: none; }
+    .pds-footer a:hover { color: #fff; }
+  </style>
+
+  <!-- jsPDF + autoTable -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <!-- SheetJS for Excel export -->
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- ── Porsche Header ── -->
+<header class="pds-header">
+  <a class="pds-header__logo" href="#">
+    <img class="pds-header__crest"
+         src="https://cdn.ui.porsche.com/porsche-design-system/crest/porsche-crest.2245c45@2x.webp"
+         alt="Porsche" />
+    <div class="pds-header__divider"></div>
+    <span class="pds-header__wordmark">PORSCHE <span class="pds-header__wordmark-sub">Engineering</span></span>
+    <div class="pds-header__divider"></div>
+    <span class="pds-header__title">MLBEVO · Testing SOP Tools</span>
+  </a>
+  <span class="pds-header__badge">Internal</span>
+</header>
+
+<!-- ── Page ── -->
+<div class="pds-page">
+
+  <h1 class="pds-page-title">Testplan SOP <span>Dashboard</span></h1>
+  <p class="pds-page-subtitle">Resolve test plan keys, analyse FAIL &amp; BLOCKED reports, and trigger mail notifications.</p>
+
+<!-- ── Input Card ── -->
+<div class="card">
+  <h2>Analyze Test Plan</h2>
+  <textarea id="prompt" placeholder='e.g. "Show me the fail status for MLBEVO-17818" or "Navigation ECE failed tests"'></textarea>
+  <div class="action-row">
+    <button class="btn btn-primary" id="btnAnalyze" onclick="runAnalysis()">
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 1l9 5-9 5V1z" fill="currentColor"/></svg>
+      Analyze
+    </button>
+    <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
+  </div>
+</div>
+
+<!-- ── Status Banner ── -->
+<div class="card" style="padding:14px 24px;">
+  <div class="status" id="statusBanner">
+    <div class="spinner" id="statusSpinner"></div>
+    <span id="statusText"></span>
+  </div>
+  <div id="statusPlaceholder">Results will appear here after you click Analyze.</div>
+</div>
+
+<!-- ── Expand Cards (multi-region / multi-WG picker) ── -->
+<div class="card" id="expandCard" style="display:none;">
+  <h2 id="expandTitle">Select a Test Plan</h2>
+  <p id="expandSubtitle" style="color:#9ca3af;font-size:.85rem;margin-bottom:18px;"></p>
+  <div id="expandGrid" style="display:flex;flex-wrap:wrap;gap:14px;"></div>
+</div>
+
+<!-- ── Metadata Card ── -->
+<div class="card" id="metaCard" style="display:none;">
+  <h2>Test Plan Metadata</h2>
+  <div id="metaTable"></div>
+  <div class="action-row" style="margin-top:18px;">
+    <button class="btn btn-danger"  id="btnFailHistorical" onclick="loadFail('historical')" disabled>Fail Report — Historical</button>
+    <button class="btn btn-secondary" id="btnFailLatest"    onclick="loadFail('latest')"    disabled style="border-color:var(--pds-color-error);color:var(--pds-color-error);">Fail Report — Latest</button>
+    <button class="btn btn-warn"    id="btnBlocked" onclick="loadBlocked()" disabled>Blocked Report</button>
+    <button class="btn btn-secondary" id="btnMail"  onclick="loadMailCandidates()" disabled>Trigger Mail</button>
+    <button class="btn btn-secondary" id="btnJqlPaste" onclick="openJqlDrawer()" style="border-color:#6366f1;color:#6366f1;">&#128203; Paste &amp; Export</button>
+  </div>
+</div>
+
+<!-- ── Fail Report Card ── -->
+<div class="card" id="failCard" style="display:none;">
+  <h2>Historical Fail Report</h2>
+  <div class="status" id="failStatus"></div>
+  <div id="failSummaryRow" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;"></div>
+  <div id="failExports" class="export-strip" style="display:none;">
+    <button class="btn btn-primary" id="btnExportFailExcel" onclick="exportFailExcel()">Export Excel</button>
+    <button class="btn btn-secondary" id="btnExportFailCSV" style="display:none;" onclick="exportFailCSV()">Export CSV</button>
+    <button class="btn btn-secondary" id="btnExportFailPDF" onclick="exportFailPDF()">Export PDF</button>
+    <button class="btn btn-secondary" id="btnExportFailXLSX" style="display:none;" onclick="exportFailServerXLSX()">Server XLSX</button>
+    <button class="btn btn-secondary" id="btnExportFailServerPDF" style="display:none;" onclick="exportFailServerPDF()">Server PDF</button>
+  </div>
+  <div id="failTable"></div>
+</div>
+
+<!-- ── Blocked Report Card ── -->
+<div class="card" id="blockedCard" style="display:none;">
+  <h2>Blocked Report</h2>
+  <div class="status" id="blockedStatus"></div>
+  <div id="blockedSummaryRow" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;"></div>
+  <div id="blockedExports" class="export-strip" style="display:none;">
+    <button class="btn btn-primary" id="btnExportBlockedExcel" onclick="exportBlockedExcel()">Export Excel</button>
+    <button class="btn btn-secondary" id="btnExportBlockedCSV" style="display:none;" onclick="exportBlockedCSV()">Export CSV</button>
+    <button class="btn btn-secondary" id="btnExportBlockedPDF" onclick="exportBlockedPDF()">Export PDF</button>
+    <button class="btn btn-secondary" id="btnExportBlockedXLSX" style="display:none;" onclick="exportBlockedServerXLSX()">Server XLSX</button>
+    <button class="btn btn-secondary" id="btnExportBlockedServerPDF" style="display:none;" onclick="exportBlockedServerPDF()">Server PDF</button>
+  </div>
+  <div id="blockedTable"></div>
+</div>
+
+<!-- ── JQL Paste Drawer ── -->
+<div id="jqlDrawerOverlay" onclick="closeJqlDrawer()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:999;"></div>
+<div id="jqlDrawer" style="display:none;position:fixed;top:0;right:0;width:420px;max-width:95vw;height:100vh;background:#1c1c1e;border-left:1px solid #333;z-index:1000;box-shadow:-4px 0 24px rgba(0,0,0,.6);padding:28px 24px;overflow-y:auto;transition:transform .25s ease;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <h2 style="margin:0;font-size:1rem;">&#128203; Paste &amp; Export</h2>
+    <button onclick="closeJqlDrawer()" style="background:none;border:none;color:#aaa;font-size:1.3rem;cursor:pointer;line-height:1;">&times;</button>
+  </div>
+  <p style="font-size:.82rem;color:#888;margin-bottom:12px;">Paste the full JSON from <code>/tmp/jql-fail-report</code> (Postman / Swagger), then export to Excel.</p>
+  <textarea id="jqlPasteArea" rows="12" style="width:100%;font-size:.78rem;font-family:monospace;border:1px solid #333;background:#111;color:#ccc;padding:8px;border-radius:4px;resize:vertical;box-sizing:border-box;" placeholder='{"executions_scanned":230,"results":[...]}'></textarea>
+  <div style="margin-top:12px;display:flex;gap:10px;align-items:center;">
+    <button class="btn btn-primary" onclick="jqlPasteExport()">Export Excel</button>
+    <span id="jqlPasteStatus" style="font-size:.82rem;color:#888;"></span>
+  </div>
+</div>
+
+<!-- ── FAIL Overview ── -->
+<div class="card" id="failOverviewLaunchCard">
+  <h2>&#128202; FAIL Overview — Browse by Region</h2>
+  <p style="color:#9ca3af;font-size:.85rem;margin-bottom:18px;">Select a region to list test plans, then click a plan to view all FAILs with timestamp, tester and KPM links.</p>
+  <div style="display:flex;flex-wrap:wrap;gap:12px;" id="foRegionButtons">
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing ECE','ECE')"       style="border-color:#6366f1;color:#6366f1;">ECE</button>
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing NAR','NAR')"       style="border-color:#6366f1;color:#6366f1;">NAR</button>
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing JPN','JPN')"       style="border-color:#6366f1;color:#6366f1;">JPN</button>
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing KOR','KOR')"       style="border-color:#6366f1;color:#6366f1;">KOR</button>
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing TWN','TWN')"       style="border-color:#6366f1;color:#6366f1;">TWN</button>
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing Hong-Kong','HKG')" style="border-color:#6366f1;color:#6366f1;">Hong Kong</button>
+    <button class="btn btn-secondary" onclick="foSelectRegion('Testing Macau','MAC')"     style="border-color:#6366f1;color:#6366f1;">Macau</button>
+  </div>
+</div>
+
+<div class="card" id="foPickerCard" style="display:none;">
+  <h2 id="foPickerTitle">Select a Test Plan</h2>
+  <p id="foPickerSubtitle" style="color:#9ca3af;font-size:.85rem;margin-bottom:18px;"></p>
+  <div class="status" id="foPickerStatus"></div>
+  <div id="foPickerGrid" style="display:flex;flex-wrap:wrap;gap:14px;"></div>
+</div>
+
+<div class="card" id="foResultCard" style="display:none;">
+  <h2>FAIL Overview — <span id="foResultPlanKey"></span></h2>
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
+    <label style="font-size:.82rem;color:#9ca3af;display:flex;align-items:center;gap:6px;cursor:pointer;">
+      <input type="checkbox" id="foHistoricalToggle" onchange="foReloadCurrent()" style="accent-color:#6366f1;"> Include historical FAILs
+    </label>
+    <button class="btn btn-primary" id="foExportBtn" onclick="foExportExcel()" style="display:none;">Export Excel</button>
+  </div>
+  <div class="status" id="foResultStatus"></div>
+  <div id="foSummaryRow" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;"></div>
+  <div id="foTable"></div>
+</div>
+
+<!-- ── Mail Trigger Card ── -->
+<div class="card" id="mailCard" style="display:none;">
+  <h2>Mail Trigger Preview — No KPM <span id="mailSourceBadge" style="margin-left:10px;font-size:.72rem;font-weight:600;padding:3px 10px;border-radius:3px;vertical-align:middle;display:none;"></span></h2>
+  <div class="status" id="mailStatus"></div>
+  <div id="mailSummaryRow" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;"></div>
+  <div class="action-row" style="margin-bottom:12px;">
+    <button class="btn btn-brand" id="btnMailAll" onclick="triggerMailAll()" disabled>Send Email To All Emailable</button>
+  </div>
+  <div id="mailTable"></div>
+</div>
+
+<script>
+  const BASE = 'http://127.0.0.1:8080';
+  let storedTestPlanKey = null;
+
+  // ── UI helpers ─────────────────────────────────────────────────────────────
+
+  function setStatus(state, msg) {
+    const banner = document.getElementById('statusBanner');
+    const text   = document.getElementById('statusText');
+    const spinner= document.getElementById('statusSpinner');
+    const ph     = document.getElementById('statusPlaceholder');
+
+    banner.className = 'status show ' + state;
+    text.textContent = msg;
+    spinner.style.display = state === 'loading' ? 'block' : 'none';
+    ph.style.display = 'none';
+  }
+
+  function setBannerStatus(id, state, msg) {
+    const el = document.getElementById(id);
+    el.className = 'status show ' + state;
+    el.innerHTML = (state === 'loading'
+      ? '<div class="spinner"></div>'
+      : (state === 'error' ? '✗' : '✓')) + ' <span>' + msg + '</span>';
+  }
+
+  function setLoading(loading) {
+    document.getElementById('btnAnalyze').disabled = loading;
+    if (!loading) {
+      document.getElementById('btnFailHistorical').disabled = !storedTestPlanKey;
+      document.getElementById('btnFailLatest').disabled     = !storedTestPlanKey;
+      document.getElementById('btnBlocked').disabled = !storedTestPlanKey;
+      document.getElementById('btnMail').disabled    = !storedTestPlanKey;
+    } else {
+      document.getElementById('btnFailHistorical').disabled = true;
+      document.getElementById('btnFailLatest').disabled     = true;
+      document.getElementById('btnBlocked').disabled = true;
+      document.getElementById('btnMail').disabled    = true;
+    }
+  }
+
+  function summaryPill(label, value, cls) {
+    return `<div class="summary-pill">
+              <div class="summary-pill__label">${label}</div>
+              <div class="summary-pill__value ${cls}">${value}</div>
+            </div>`;
+  }
+
+  // ── JSON → HTML table ──────────────────────────────────────────────────────
+
+  function renderValue(val) {
+    if (val === null || val === undefined) return '<span class="nested">—</span>';
+    if (typeof val === 'object') {
+      // flatten object to key:value pairs
+      return '<span class="nested">' +
+        Object.entries(val)
+          .filter(([,v]) => v !== null && v !== undefined)
+          .map(([k,v]) => `<b>${k}:</b> ${v}`)
+          .join(' · ') +
+        '</span>';
+    }
+    return String(val);
+  }
+
+  function jsonToTable(data) {
+    if (!data || (Array.isArray(data) && data.length === 0)) {
+      return '<p class="empty">No data available.</p>';
+    }
+
+    const rows = Array.isArray(data) ? data : [data];
+    const keys = Object.keys(rows[0]);
+
+    let html = '<div class="table-wrap"><table><thead><tr>';
+    keys.forEach(k => { html += `<th>${k.replace(/_/g,' ')}</th>`; });
+    html += '</tr></thead><tbody>';
+
+    rows.forEach(row => {
+      html += '<tr>';
+      keys.forEach(k => {
+        const val = row[k];
+        let cell = renderValue(val);
+
+        // coloured badges for status / kpm_id
+        if (k === 'status') {
+          const s = String(val).toUpperCase();
+          const cls = s === 'FAIL' ? 'badge-red' : s === 'PASS' ? 'badge-green' : s === 'BLOCKED' ? 'badge-yellow' : 'badge-gray';
+          cell = `<span class="badge ${cls}">${val}</span>`;
+        }
+        if (k === 'kpm_id' && val && val !== 'No KPM') {
+          const kpmUrl = `https://kpmweb.vw.vwg/kpmweb/problemKlickOptimiert.xhtml?id=${val}`;
+          cell = `<a href="${kpmUrl}" target="_blank" rel="noopener" class="kpm">${val}</a>`;
+        }
+        if (k === 'kpm_id' && val === 'No KPM') {
+          cell = `<span class="badge badge-no-kpm">No KPM</span>`;
+        }
+        if (k === 'test_key' || k === 'test_exec_key') {
+          const jiraUrl = `https://skyway.porsche.com/jira/browse/${val}`;
+          cell = `<a href="${jiraUrl}" target="_blank" rel="noopener" style="color:var(--pds-color-brand);text-decoration:none;font-weight:600;">${val}</a>`;
+        }
+
+        html += `<td>${cell}</td>`;
+      });
+      html += '</tr>';
+    });
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  // ── Key-value metadata table ───────────────────────────────────────────────
+
+  function renderMetaTable(obj) {
+    const statusFields = ['Pass','Fail','Blocked','Aborted','ToDo','Executing'];
+    let html = '<div class="table-wrap"><table><thead><tr><th>Field</th><th>Value</th></tr></thead><tbody>';
+    for (const [k, v] of Object.entries(obj)) {
+      if (v === null || v === undefined || v === '') continue;
+      let cell = renderValue(v);
+      if (statusFields.includes(k)) {
+        const cls = k === 'Fail' ? 'badge-red' : k === 'Pass' ? 'badge-green' : k === 'Blocked' ? 'badge-yellow' : k === 'Aborted' ? 'badge-gray' : 'badge-blue';
+        cell = `<span class="badge ${cls}">${v}</span>`;
+      }
+      html += `<tr><td style="font-weight:600;color:#6b7280;">${k}</td><td>${cell}</td></tr>`;
+    }
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  // ── Tool 1 – parse keywords (now also resolves test_plan_key via Confluence) ─
+
+  async function callTool1(prompt) {
+    const url = `${BASE}/parse-keywords?prompt=${encodeURIComponent(prompt)}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Tool 1 failed: ${resp.status}`);
+    return await resp.json();
+  }
+
+  // ── Tool 2 – Confluence page ───────────────────────────────────────────────
+
+  async function callTool2(pageId) {
+    const url = `${BASE}/confluence/page/${pageId}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`Tool 2 failed: ${resp.status}`);
+    return await resp.json();
+  }
+
+  // ── Parse Confluence HTML body into a flat key→value object ───────────────
+
+  function parseConfluenceMeta(body) {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(body || '', 'text/html');
+    const meta = {};
+    doc.querySelectorAll('table tr').forEach(row => {
+      const cells = row.querySelectorAll('td, th');
+      if (cells.length >= 2) {
+        const key = cells[0].textContent.trim();
+        const val = cells[1].textContent.trim();
+        if (key) meta[key] = val;
+      }
+    });
+    return meta;
+  }
+
+  // ── Main analysis flow ─────────────────────────────────────────────────────
+
+  // ── Expand-mode: show picker cards then wire click → selectExpandedPlan ──
+  async function _runExpand(prompt) {
+    setStatus('loading', 'Expanding across all regions/working groups…');
+    const resp = await fetch(`${BASE}/testplans/expand?query=${encodeURIComponent(prompt)}`);
+    if (!resp.ok) throw new Error(`Expand failed: ${resp.status}`);
+    const data = await resp.json();
+    if (data.error) throw new Error(data.error);
+
+    const grid = document.getElementById('expandGrid');
+    grid.innerHTML = '';
+    const items = data.all || [];
+    const groupField = data.matched_as === 'region' ? 'working_group' : 'region';
+
+    document.getElementById('expandTitle').textContent =
+      data.matched_as === 'region'
+        ? `${data.label} — Select a Working Group`
+        : `${data.label} — Select a Region`;
+    document.getElementById('expandSubtitle').textContent =
+      `${items.length} test plan(s) found. Click one to load its metadata and reports.`;
+
+    if (items.length === 0) {
+      grid.innerHTML = '<p style="color:#ef4444;">No test plans found for this query.</p>';
+    } else {
+      items.forEach(item => {
+        const card = document.createElement('div');
+        card.style.cssText = 'cursor:pointer;border:1.5px solid #374151;border-radius:10px;padding:16px 20px;min-width:160px;max-width:200px;background:#1c1c1e;transition:border-color .15s,background .15s;text-align:center;';
+        card.innerHTML = `<div style="font-size:.78rem;color:#9ca3af;margin-bottom:6px;">${item[groupField] || '—'}</div><div style="font-weight:700;font-size:.95rem;color:#e5e7eb;">${item.test_plan_key}</div>`;
+        card.onmouseenter = () => { card.style.borderColor='#6366f1'; card.style.background='#27272a'; };
+        card.onmouseleave = () => { card.style.borderColor='#374151'; card.style.background='#1c1c1e'; };
+        card.onclick = () => selectExpandedPlan(item, data);
+        grid.appendChild(card);
+      });
+    }
+
+    document.getElementById('expandCard').style.display = 'block';
+    setStatus('success', `✓ Found ${items.length} test plan(s). Click one to load.`);
+  }
+
+  async function selectExpandedPlan(item, expandData) {
+    storedTestPlanKey = item.test_plan_key;
+
+    // Highlight selected card
+    document.querySelectorAll('#expandGrid > div').forEach(c => {
+      c.style.borderColor = '#374151'; c.style.background = '#1c1c1e';
+    });
+    event.currentTarget.style.borderColor = '#6366f1';
+    event.currentTarget.style.background  = '#2d2d3a';
+
+    setLoading(true);
+    setStatus('loading', `Loading metadata for ${storedTestPlanKey}…`);
+    try {
+      let totalTests = null;
+      try {
+        const statsResp = await fetch(`${BASE}/testplan/${storedTestPlanKey}/failed-tests`);
+        if (statsResp.ok) { const s = await statsResp.json(); totalTests = s.total_fetched ?? null; }
+      } catch (_) {}
+
+      const meta = {
+        'Test Plan Key' : storedTestPlanKey,
+        ...(item.working_group ? { 'Working Group' : item.working_group } : {}),
+        ...(item.region        ? { 'Location'      : item.region }        : {}),
+        ...(totalTests !== null ? { 'Total Scope'  : totalTests }         : {}),
+      };
+      document.getElementById('metaTable').innerHTML = renderMetaTable(meta);
+      document.getElementById('metaCard').style.display = 'block';
+      document.getElementById('btnFailHistorical').disabled = false;
+      document.getElementById('btnFailLatest').disabled     = false;
+      document.getElementById('btnBlocked').disabled        = false;
+      document.getElementById('btnMail').disabled           = false;
+      // reset report cards
+      ['failCard','blockedCard','mailCard'].forEach(id => document.getElementById(id).style.display = 'none');
+      setStatus('success', `✓ Ready. Test Plan: <b>${storedTestPlanKey}</b>`);
+    } catch(err) {
+      setStatus('error', '✗ ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function runAnalysis() {
+    const prompt = document.getElementById('prompt').value.trim();
+    if (!prompt) { alert('Please enter a prompt.'); return; }
+
+    storedTestPlanKey = null;
+    document.getElementById('metaCard').style.display   = 'none';
+    document.getElementById('expandCard').style.display = 'none';
+    document.getElementById('failCard').style.display   = 'none';
+    document.getElementById('blockedCard').style.display= 'none';
+    document.getElementById('mailCard').style.display   = 'none';
+    document.getElementById('mailSourceBadge').style.display = 'none';
+    document.getElementById('mailSourceBadge').textContent  = '';
+
+    setLoading(true);
+    setStatus('loading', 'Extracting keywords and resolving Test Plan…');
+
+    try {
+      // ── Expand-mode detection (prompt-level) ──────────────────────────────
+      // If the prompt contains broad "all" / "everything" intent, skip normal
+      // parse_keywords flow and go straight to the expand endpoint.
+      const _expandIntent = /\b(all\s+of|all\b|everything|every\s+working\s+group|all\s+regions?|all\s+working\s+groups?)\b/i.test(prompt);
+      if (_expandIntent) {
+        setLoading(false);
+        return await _runExpand(prompt);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      // Step 1 – Tool 1 now internally queries Confluence and returns test_plan_key
+      const kw = await callTool1(prompt);
+
+      // ── Expand-mode fallback (parse_keywords returned only one dimension) ─
+      const hasRegion = !!(kw.location);
+      const hasWG     = !!(kw.working_group);
+      if ((hasRegion !== hasWG) && !kw.test_plan_key) {
+        setLoading(false);
+        return await _runExpand(prompt);
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      storedTestPlanKey = kw.test_plan_key || null;
+
+      setStatus('loading', 'Fetching Confluence page metadata…');
+
+      // Step 2 – Confluence page for display metadata
+      const page = await callTool2('2378907792');
+      const rawMeta = parseConfluenceMeta(page.body || '');
+
+      // Step 3 – Fetch real total test count from Xray if key is known
+      let totalTests = null;
+      if (storedTestPlanKey) {
+        try {
+          setStatus('loading', 'Fetching test count from Xray…');
+          const statsResp = await fetch(`${BASE}/testplan/${storedTestPlanKey}/failed-tests`);
+          if (statsResp.ok) {
+            const stats = await statsResp.json();
+            totalTests = stats.total_fetched ?? null;
+          }
+        } catch (_) { /* non-fatal */ }
+      }
+
+      // Build display metadata
+      const CONFLUENCE_FIELDS = ['Orphans', 'Not Yet Planned', 'Planned'];
+      const meta = {
+        'Page Title'  : page.title || '—',
+        ...(storedTestPlanKey          ? { 'Test Plan Key' : storedTestPlanKey }       : {}),
+        ...(totalTests !== null        ? { 'Total Scope' : totalTests }         : {}),
+        ...(kw.working_group           ? { 'Working Group' : kw.working_group }        : {}),
+        ...(kw.location                ? { 'Location'      : kw.location }             : {}),
+        ...(kw.workstream              ? { 'Workstream'    : kw.workstream }           : {}),
+        ...(kw.product_owner           ? { 'Product Owner' : kw.product_owner }        : {}),
+        ...(kw.status                  ? { 'Status Filter' : kw.status }               : {}),
+        ...Object.fromEntries(CONFLUENCE_FIELDS.filter(f => rawMeta[f]).map(f => [f, rawMeta[f]])),
+      };
+
+      document.getElementById('metaTable').innerHTML = renderMetaTable(meta);
+      document.getElementById('metaCard').style.display = 'block';
+
+      document.getElementById('btnFailHistorical').disabled = !storedTestPlanKey;
+      document.getElementById('btnFailLatest').disabled     = !storedTestPlanKey;
+      document.getElementById('btnBlocked').disabled = !storedTestPlanKey;
+      document.getElementById('btnMail').disabled    = !storedTestPlanKey;
+
+      const keyNote = storedTestPlanKey
+        ? `Test Plan Key: <b>${storedTestPlanKey}</b>`
+        : 'No Test Plan Key found. Try including more specific keywords or a key like <b>MLBEVO-12345</b>.';
+
+      setStatus('success', '✓ Analysis complete. ' + keyNote);
+
+    } catch (err) {
+      setStatus('error', '✗ ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ── Reset all report cards except the one being opened ─────────────────
+  function _resetCards(keep) {
+    const cards = {
+      fail:    { card: 'failCard',    table: 'failTable',    summary: 'failSummaryRow',    status: 'failStatus',    exports: 'failExports' },
+      blocked: { card: 'blockedCard', table: 'blockedTable', summary: 'blockedSummaryRow', status: 'blockedStatus', exports: 'blockedExports' },
+      mail:    { card: 'mailCard',    table: 'mailTable',    summary: 'mailSummaryRow',    status: 'mailStatus',    exports: null },
+    };
+    for (const [key, ids] of Object.entries(cards)) {
+      if (key === keep) continue;
+      const card = document.getElementById(ids.card);
+      if (card) card.style.display = 'none';
+      const tbl = document.getElementById(ids.table);
+      if (tbl) tbl.innerHTML = '';
+      const sum = document.getElementById(ids.summary);
+      if (sum) sum.innerHTML = '';
+      const st = document.getElementById(ids.status);
+      if (st) { st.className = 'status'; st.innerHTML = ''; }
+      if (ids.exports) {
+        const exp = document.getElementById(ids.exports);
+        if (exp) exp.style.display = 'none';
+      }
+    }
+    // also hide mail source badge when not showing mail
+    if (keep !== 'mail') {
+      const badge = document.getElementById('mailSourceBadge');
+      if (badge) { badge.style.display = 'none'; badge.textContent = ''; }
+    }
+  }
+
+  // ── Fail report ────────────────────────────────────────────────────────────
+
+  async function loadFail(mode) {
+    if (!storedTestPlanKey) return;
+    _resetCards('fail');
+    const isHistorical = mode === 'historical';
+    const endpoint = isHistorical
+      ? `${BASE}/xray/fail-report/${storedTestPlanKey}/historical`
+      : `${BASE}/xray/fail-report/${storedTestPlanKey}`;
+    const modeLabel = isHistorical ? 'Historical Fail Report' : 'Latest Fail Report';
+
+    document.getElementById('failCard').style.display = 'block';
+    document.getElementById('failCard').querySelector('h2').childNodes[1]
+      ? (document.getElementById('failCard').querySelector('h2').lastChild.textContent = modeLabel)
+      : null;
+    document.getElementById('failTable').innerHTML = '';
+    document.getElementById('failSummaryRow').innerHTML = '';
+    setBannerStatus('failStatus', 'loading', `Fetching ${modeLabel.toLowerCase()}…`);
+    document.getElementById('btnFailHistorical').disabled = true;
+    document.getElementById('btnFailLatest').disabled     = true;
+    document.getElementById('btnBlocked').disabled = true;
+
+    try {
+      const resp = await fetch(endpoint);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      // Update card title
+      const h2 = document.getElementById('failCard').querySelector('h2');
+      h2.innerHTML = `<span></span>${modeLabel}`;
+
+      // Summary pills
+      document.getElementById('failSummaryRow').innerHTML =
+        summaryPill('Total FAIL', data.total_fail ?? 0, 'badge-red') +
+        summaryPill('With KPM',   data.with_kpm   ?? 0, 'badge-green') +
+        summaryPill('No KPM',     data.without_kpm?? 0, 'badge-gray') +
+        summaryPill('Time (s)',    Math.round(data.execution_time_seconds ?? 0), '');
+
+      const results = data.results || [];
+      window._lastFailResults = results;
+      window._lastFailMode = isHistorical ? 'Historical Fail' : 'Latest Fail';
+      document.getElementById('failExports').style.display = results && results.length ? 'block' : 'none';
+      document.getElementById('failTable').innerHTML = results.length
+        ? jsonToTable(results)
+        : '<p class="empty">No FAIL results found.</p>';
+
+      setBannerStatus('failStatus', 'success', `Loaded ${results.length} FAIL result(s) for ${storedTestPlanKey} [${isHistorical ? 'historical' : 'latest'}]`);
+
+    } catch (err) {
+      setBannerStatus('failStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('failTable').innerHTML = '<p class="empty">Could not load data.</p>';
+      document.getElementById('failExports').style.display = 'none';
+    } finally {
+      document.getElementById('btnFailHistorical').disabled = false;
+      document.getElementById('btnFailLatest').disabled     = false;
+      document.getElementById('btnBlocked').disabled = false;
+    }
+  }
+
+  async function loadBlocked() {
+    if (!storedTestPlanKey) return;
+    _resetCards('blocked');
+
+    document.getElementById('blockedCard').style.display = 'block';
+    document.getElementById('blockedTable').innerHTML = '';
+    document.getElementById('blockedSummaryRow').innerHTML = '';
+    setBannerStatus('blockedStatus', 'loading', 'Fetching BLOCKED report…');
+    document.getElementById('btnFailHistorical').disabled = true;
+    document.getElementById('btnFailLatest').disabled     = true;
+    document.getElementById('btnBlocked').disabled = true;
+    document.getElementById('btnMail').disabled    = true;
+
+    try {
+      const resp = await fetch(`${BASE}/xray/blocked-report/${storedTestPlanKey}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      document.getElementById('blockedSummaryRow').innerHTML =
+        summaryPill('Total BLOCKED', data.total_blocked ?? 0, 'badge-yellow') +
+        summaryPill('With KPM',      data.with_kpm      ?? 0, 'badge-green') +
+        summaryPill('No KPM',        data.without_kpm   ?? 0, 'badge-gray') +
+        summaryPill('Time (s)',       Math.round(data.execution_time_seconds ?? 0), '');
+
+      const results = data.results || [];
+      // Cache results for export helpers and show/hide export buttons
+      window._lastBlockedResults = results;
+      document.getElementById('blockedExports').style.display = results && results.length ? 'block' : 'none';
+      document.getElementById('blockedTable').innerHTML = results.length
+        ? jsonToTable(results)
+        : '<p class="empty">No BLOCKED results found.</p>';
+
+      setBannerStatus('blockedStatus', 'success', `Loaded ${results.length} BLOCKED result(s) for ${storedTestPlanKey}`);
+
+    } catch (err) {
+      setBannerStatus('blockedStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('blockedTable').innerHTML = '<p class="empty">Could not load data.</p>';
+      document.getElementById('blockedExports').style.display = 'none';
+    } finally {
+      document.getElementById('btnFailHistorical').disabled = false;
+      document.getElementById('btnFailLatest').disabled     = false;
+      document.getElementById('btnBlocked').disabled = false;
+      document.getElementById('btnMail').disabled    = false;
+    }
+  }
+
+  function renderMailTable(rows) {
+    const filtered = Array.isArray(rows) ? rows : [];
+    if (!filtered.length) return '<p class="empty">No No-KPM candidates found.</p>';
+
+    let html = '<div class="table-wrap"><table><thead><tr>' +
+      '<th>Test Key</th><th>KPM ID</th><th>Display Name</th><th>Email</th><th>Action</th>' +
+      '</tr></thead><tbody>';
+
+    for (const r of filtered) {
+      const key = r.test_key || '—';
+      const kpm = r.kpm_id || 'No KPM';
+      const name = r.display_name || '—';
+      const email = r.email || '—';
+      const canEmail = !!r.can_email;
+      const noKpm = !!r.no_kpm;
+      const action = canEmail
+        ? (noKpm
+            ? `<button class="btn btn-primary" style="padding:6px 10px;font-size:.78rem;" onclick="triggerMailOne('${key}')">Send Email</button>`
+            : '<span class="nested">Has KPM</span>')
+        : '<span class="nested">No email</span>';
+
+      html += `<tr><td>${key}</td><td><span class="kpm">${kpm}</span></td><td>${name}</td><td>${email}</td><td>${action}</td></tr>`;
+    }
+
+    html += '</tbody></table></div>';
+    return html;
+  }
+
+  async function loadMailCandidates() {
+    if (!storedTestPlanKey) return;
+    _resetCards('mail');
+
+    document.getElementById('mailCard').style.display = 'block';
+    document.getElementById('mailTable').innerHTML = '';
+    document.getElementById('mailSummaryRow').innerHTML = '';
+    document.getElementById('btnMailAll').disabled = true;
+
+    // ── Use cached fail results if a report has already been loaded ──────
+    if (window._lastFailResults && window._lastFailResults.length) {
+      const mode   = window._lastFailMode || 'Fail Report';
+      const cached = window._lastFailResults;
+
+      // Derive mail-candidate rows from cached results (same shape renderMailTable expects)
+      const mailRows = cached.map(r => {
+        const a     = r.assignee || {};
+        const email = a.emailAddress || '';
+        const noKpm = !r.kpm_id || r.kpm_id === 'No KPM';
+        return {
+          test_key:     r.test_key    || '',
+          kpm_id:       noKpm ? '' : (r.kpm_id || ''),
+          display_name: a.displayName || '—',
+          email,
+          can_email:    !!email,
+          no_kpm:       noKpm,
+        };
+      }).filter(r => r.no_kpm);
+
+      const emailable = mailRows.filter(r => r.can_email).length;
+
+      // Show source badge
+      const badge = document.getElementById('mailSourceBadge');
+      const isHistorical = mode.toLowerCase().includes('historical');
+      badge.textContent  = `Source: ${mode}`;
+      badge.style.display = 'inline-block';
+      badge.style.background   = isHistorical ? '#010205' : '#1a56db';
+      badge.style.color        = '#fff';
+
+      document.getElementById('mailSummaryRow').innerHTML =
+        summaryPill(mode, cached.length, 'badge-red') +
+        summaryPill('No KPM', mailRows.length, 'badge-gray') +
+        summaryPill('Emailable (No KPM)', emailable, 'badge-blue');
+
+      document.getElementById('mailTable').innerHTML = renderMailTable(mailRows);
+      document.getElementById('btnMailAll').disabled = !(emailable > 0);
+      setBannerStatus('mailStatus', 'success',
+        `Showing ${mailRows.length} No-KPM candidate(s) from ${mode}. No extra server call.`);
+      return;
+    }
+
+    // ── Fallback: no cache, fetch from server ────────────────────────────
+    setBannerStatus('mailStatus', 'loading', 'Fetching historical No-KPM mail candidates…');
+    document.getElementById('btnFailHistorical').disabled = true;
+    document.getElementById('btnFailLatest').disabled     = true;
+    document.getElementById('btnBlocked').disabled = true;
+    document.getElementById('btnMail').disabled    = true;
+
+    try {
+      const resp = await fetch(`${BASE}/mail/trigger/${storedTestPlanKey}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      document.getElementById('mailSummaryRow').innerHTML =
+        summaryPill('Historical FAIL', data.total_historical_fail ?? 0, 'badge-red') +
+        summaryPill('No KPM', data.no_kpm_count ?? 0, 'badge-gray') +
+        summaryPill('Emailable (No KPM)', data.emailable_no_kpm_count ?? 0, 'badge-blue');
+
+      const rows = data.rows || [];
+      document.getElementById('mailTable').innerHTML = renderMailTable(rows);
+      document.getElementById('btnMailAll').disabled = !(data.emailable_no_kpm_count > 0);
+      // Source badge — server fallback always returns historical
+      const badge2 = document.getElementById('mailSourceBadge');
+      badge2.textContent = 'Source: Historical Fail (server)';
+      badge2.style.display  = 'inline-block';
+      badge2.style.background = '#010205';
+      badge2.style.color      = '#fff';
+      setBannerStatus('mailStatus', 'success', `Loaded ${rows.length} candidate(s).`);
+    } catch (err) {
+      setBannerStatus('mailStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('mailTable').innerHTML = '<p class="empty">Could not load candidates.</p>';
+    } finally {
+      document.getElementById('btnFailHistorical').disabled = false;
+      document.getElementById('btnFailLatest').disabled     = false;
+      document.getElementById('btnBlocked').disabled = false;
+      document.getElementById('btnMail').disabled    = false;
+    }
+  }
+
+  async function triggerMailOne(testKey) {
+    if (!storedTestPlanKey || !testKey) return;
+    try {
+      const resp = await fetch(`${BASE}/mail/trigger/${storedTestPlanKey}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([testKey]),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      alert(`Dry run: selected ${data.selected_count} recipient(s) for ${testKey}.`);
+    } catch (err) {
+      alert('Trigger failed: ' + err.message);
+    }
+  }
+
+  async function triggerMailAll() {
+    if (!storedTestPlanKey) return;
+    try {
+      const resp = await fetch(`${BASE}/mail/trigger/${storedTestPlanKey}/send`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify([]),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      alert(`Dry run: selected ${data.selected_count} recipient(s) for mail.`);
+    } catch (err) {
+      alert('Trigger failed: ' + err.message);
+    }
+  }
+
+  // Allow Enter + Ctrl/Cmd to submit
+  document.getElementById('prompt').addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runAnalysis();
+  });
+
+  // ── Export helpers ───────────────────────────────────────────────────────
+  function _stringifyCell(v) {
+    if (v === null || v === undefined) return '';
+    if (typeof v === 'object') return JSON.stringify(v);
+    return String(v);
+  }
+
+  function downloadCSV(filename, rows) {
+    if (!rows || !rows.length) { alert('No data to export'); return; }
+    const keys = Object.keys(rows[0]);
+    const lines = [keys.join(',')];
+    for (const r of rows) {
+      const vals = keys.map(k => '"' + (_stringifyCell(r[k]) || '').replace(/"/g,'""') + '"');
+      lines.push(vals.join(','));
+    }
+    const blob = new Blob([lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  const FAIL_COLS = [
+    { key: 'test_key',        label: 'Test Key',       w: 25 },
+    { key: 'summary',         label: 'Summary',        w: 80 },
+    { key: 'test_exec_key',   label: 'Test Exec Key',  w: 28 },
+    { key: 'run_id',          label: 'Run ID',         w: 18 },
+    { key: 'status',          label: 'Status',         w: 18 },
+    { key: 'kpm_id',          label: 'KPM ID',         w: 25 },
+    { key: 'comment',         label: 'Comment',        w: 80 },
+    { key: '_assignee_name',  label: 'Assignee Name',  w: 40 },
+    { key: '_assignee_email', label: 'Assignee Email', w: 50 },
+  ];
+
+  const BLOCKED_COLS = [
+    { key: 'test_key',        label: 'Test Key',       w: 25 },
+    { key: 'summary',         label: 'Summary',        w: 80 },
+    { key: 'test_exec_key',   label: 'Test Exec Key',  w: 28 },
+    { key: 'run_id',          label: 'Run ID',         w: 18 },
+    { key: 'status',          label: 'Status',         w: 18 },
+    { key: 'kpm_id',          label: 'KPM ID',         w: 25 },
+    { key: 'comment',         label: 'Comment',        w: 80 },
+    { key: '_assignee_name',  label: 'Assignee Name',  w: 40 },
+    { key: '_assignee_email', label: 'Assignee Email', w: 50 },
+  ];
+
+  function _flattenRow(r) {
+    const a = r.assignee || {};
+    return {
+      test_key:        r.test_key      || '',
+      summary:         r.summary       || '',
+      test_exec_key:   r.test_exec_key || '',
+      run_id:          r.run_id        ?? '',
+      status:          r.status        || '',
+      kpm_id:          r.kpm_id        || '',
+      comment:         r.comment       || '',
+      _assignee_name:  a.displayName   || '',
+      _assignee_email: a.emailAddress  || '',
+    };
+  }
+
+  // Porsche brand colours (RGB)
+  const PDF_BLACK  = [1,   2,   5];    // #010205
+  const PDF_RED    = [213, 0,   28];   // #d5001c
+  const PDF_GRAY1  = [245, 245, 245];  // alternating row
+  const PDF_GRAY2  = [220, 220, 220];  // separator / footer bg
+  const PDF_FAIL_TINT    = [255, 235, 237]; // light red for FAIL rows
+  const PDF_BLOCKED_TINT = [255, 248, 225]; // light amber for BLOCKED rows
+
+  function _drawPageChrome(doc, title, generatedAt) {
+    const pw = doc.internal.pageSize.getWidth();
+    const ph = doc.internal.pageSize.getHeight();
+    const totalPages = doc.internal.getNumberOfPages();
+
+    for (let p = 1; p <= totalPages; p++) {
+      doc.setPage(p);
+
+      // ── Header band ──────────────────────────────────────────────────────
+      doc.setFillColor(...PDF_BLACK);
+      doc.rect(0, 0, pw, 40, 'F');
+
+      // Left: "PORSCHE" — Porsche-style: light weight, wide tracking, all-caps
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(13);
+      doc.setTextColor(255, 255, 255);
+      if (doc.setCharSpace) doc.setCharSpace(4.5);
+      doc.text('PORSCHE', 14, 18);
+      if (doc.setCharSpace) doc.setCharSpace(0);
+
+      // Left sub-line: "ENGINEERING" — smaller, tighter, muted
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(5.5);
+      doc.setTextColor(180, 180, 180);
+      if (doc.setCharSpace) doc.setCharSpace(3.5);
+      doc.text('Engineering', 14, 29);
+      if (doc.setCharSpace) doc.setCharSpace(0);
+
+      // Centre: product name
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(200, 200, 200);
+      if (doc.setCharSpace) doc.setCharSpace(1.2);
+      doc.text('MLBEVO · Testing SOP Tools', pw / 2, 23, { align: 'center' });
+      if (doc.setCharSpace) doc.setCharSpace(0);
+
+      // Right: INTERNAL badge
+      const badgeW = 54, badgeH = 15, badgeX = pw - 14 - badgeW, badgeY = 12;
+      doc.setFillColor(...PDF_RED);
+      doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(6.5);
+      doc.setTextColor(255, 255, 255);
+      if (doc.setCharSpace) doc.setCharSpace(2);
+      doc.text('INTERNAL', badgeX + badgeW / 2, badgeY + 10, { align: 'center' });
+      if (doc.setCharSpace) doc.setCharSpace(0);
+
+      // Red accent line below header
+      doc.setFillColor(...PDF_RED);
+      doc.rect(0, 40, pw, 2.5, 'F');
+
+      // ── Report title block (page 1 only) ─────────────────────────────────
+      if (p === 1 && title) {
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.setTextColor(...PDF_BLACK);
+        doc.text(title, 14, 62);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Generated: ${generatedAt}`, 14, 74);
+        // thin separator under title
+        doc.setDrawColor(...PDF_GRAY2);
+        doc.setLineWidth(0.5);
+        doc.line(14, 78, pw - 14, 78);
+      }
+
+      // ── Footer ───────────────────────────────────────────────────────────
+      doc.setFillColor(...PDF_GRAY1);
+      doc.rect(0, ph - 22, pw, 22, 'F');
+      doc.setDrawColor(...PDF_GRAY2);
+      doc.setLineWidth(0.4);
+      doc.line(0, ph - 22, pw, ph - 22);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(6.5);
+      doc.setTextColor(120, 120, 120);
+      // left
+      doc.text(`Generated: ${generatedAt}`, 14, ph - 8);
+      // centre – page number
+      doc.text(`Page ${p} of ${totalPages}`, pw / 2, ph - 8, { align: 'center' });
+      // right
+      doc.setFont('helvetica', 'italic');
+      doc.text('© Porsche Engineering — Internal Tool', pw - 14, ph - 8, { align: 'right' });
+    }
+  }
+
+  function _exportPDF(filename, rows, cols, title) {
+    if (!rows || !rows.length) { alert('No data to export'); return; }
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a3' });
+    const flatRows = rows.map(_flattenRow);
+    const head    = [cols.map(c => c.label)];
+    const body    = flatRows.map(r => cols.map(c => String(r[c.key] ?? '')));
+
+    const totalW  = cols.reduce((s, c) => s + c.w, 0);
+    const pageW   = doc.internal.pageSize.getWidth() - 28; // 14pt margin each side
+    const colWidths = cols.map(c => ({ cellWidth: (c.w / totalW) * pageW }));
+
+    const generatedAt = new Date().toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit'
+    });
+
+    // Status-based row colouring
+    const statusIdx = cols.findIndex(c => c.key === 'status');
+
+    doc.autoTable({
+      startY: title ? 88 : 54,   // leave space for header + title block
+      head,
+      body,
+      margin: { left: 14, right: 14, top: 50, bottom: 28 },
+      columnStyles: Object.fromEntries(colWidths.map((cw, i) => [i, cw])),
+      headStyles: {
+        fillColor: PDF_BLACK,
+        textColor: [255, 255, 255],
+        fontStyle: 'bold',
+        fontSize: 7,
+        cellPadding: { top: 4, bottom: 4, left: 3, right: 3 },
+      },
+      bodyStyles: { fontSize: 7, cellPadding: { top: 3, bottom: 3, left: 3, right: 3 } },
+      alternateRowStyles: { fillColor: PDF_GRAY1 },
+      // Red accent on the left edge of every header cell col-0
+      didDrawCell(data) {
+        if (data.section === 'head' && data.column.index === 0) {
+          doc.setFillColor(...PDF_RED);
+          doc.rect(data.cell.x, data.cell.y, 2, data.cell.height, 'F');
+        }
+      },
+      willDrawCell(data) {
+        if (data.section !== 'body' || statusIdx < 0) return;
+        const status = (flatRows[data.row.index]?.status || '').toUpperCase();
+        if (status === 'FAIL' || status === 'FAILED') {
+          doc.setFillColor(...PDF_FAIL_TINT);
+        } else if (status === 'BLOCKED') {
+          doc.setFillColor(...PDF_BLOCKED_TINT);
+        }
+      },
+    });
+
+    // Draw header/footer chrome on every page now that autoTable has set page count
+    _drawPageChrome(doc, title, generatedAt);
+
+    doc.save(filename);
+  }
+
+  // kept for any legacy callers
+  async function downloadPDF(filename, rows, title) {
+    _exportPDF(filename, rows, FAIL_COLS, title);
+  }
+
+  // ── Excel export (SheetJS) ────────────────────────────────────────────────
+  function exportFailExcel() {
+    const rows = window._lastFailResults || [];
+    if (!rows.length) { alert('No data to export.'); return; }
+
+    const COLS = [
+      { key: 'test_key',      label: 'Test Key' },
+      { key: 'summary',       label: 'Summary' },
+      { key: 'test_exec_key', label: 'Test Exec Key' },
+      { key: 'run_id',        label: 'Run ID' },
+      { key: 'status',        label: 'Status' },
+      { key: 'kpm_id',        label: 'KPM ID' },
+      { key: 'comment',       label: 'Comment' },
+      { key: '_assignee_name',  label: 'Assignee Name' },
+      { key: '_assignee_email', label: 'Assignee Email' },
+    ];
+
+    // Flatten assignee fields
+    const flatRows = rows.map(r => {
+      const a = r.assignee || {};
+      return {
+        test_key:        r.test_key      || '',
+        summary:         r.summary       || '',
+        test_exec_key:   r.test_exec_key || '',
+        run_id:          r.run_id        ?? '',
+        status:          r.status        || '',
+        kpm_id:          r.kpm_id        || '',
+        comment:         r.comment       || '',
+        _assignee_name:  a.displayName   || '',
+        _assignee_email: a.emailAddress  || '',
+      };
+    });
+
+    // Build worksheet data: header row + data rows
+    const wsData = [
+      COLS.map(c => c.label),
+      ...flatRows.map(r => COLS.map(c => r[c.key])),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Column widths
+    ws['!cols'] = [12, 60, 16, 12, 10, 16, 80, 30, 40].map(w => ({ wch: w }));
+
+    // Bold header row
+    const headerRange = XLSX.utils.decode_range(ws['!ref']);
+    for (let c = headerRange.s.c; c <= headerRange.e.c; c++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[cellAddr]) {
+        ws[cellAddr].s = { font: { bold: true } };
+      }
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Fail Report');
+
+    const filename = (storedTestPlanKey || 'testplan') + '_Failed.xlsx';
+    XLSX.writeFile(wb, filename);
+  }
+
+  function openJqlDrawer() {
+    document.getElementById('jqlDrawer').style.display = 'block';
+    document.getElementById('jqlDrawerOverlay').style.display = 'block';
+    document.getElementById('jqlPasteStatus').textContent = '';
+  }
+  function closeJqlDrawer() {
+    document.getElementById('jqlDrawer').style.display = 'none';
+    document.getElementById('jqlDrawerOverlay').style.display = 'none';
+  }
+
+  function jqlPasteExport() {
+    const raw = document.getElementById('jqlPasteArea').value.trim();
+    const status = document.getElementById('jqlPasteStatus');
+    if (!raw) { status.textContent = 'Nothing pasted.'; return; }
+    let data;
+    try { data = JSON.parse(raw); } catch(e) { status.textContent = 'Invalid JSON: ' + e.message; return; }
+    const rows = data.results || (Array.isArray(data) ? data : []);
+    if (!rows.length) { status.textContent = 'No results found in JSON.'; return; }
+
+    const COLS = [
+      { key: 'test_key',      label: 'Test Key' },
+      { key: 'test_summary',  label: 'Summary' },
+      { key: 'test_exec_key', label: 'Test Exec Key' },
+      { key: 'run_id',        label: 'Run ID' },
+      { key: 'status',        label: 'Status' },
+      { key: 'kpm_id',        label: 'KPM ID' },
+      { key: 'comment',       label: 'Comment' },
+    ];
+
+    const wsData = [
+      COLS.map(c => c.label),
+      ...rows.map(r => COLS.map(c => r[c.key] ?? '')),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [14, 60, 16, 12, 10, 16, 100].map(w => ({ wch: w }));
+
+    const range = XLSX.utils.decode_range(ws['!ref']);
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const addr = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[addr]) ws[addr].s = { font: { bold: true } };
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, 'JQL Fail Report');
+    const execCount = data.executions_scanned || rows.length;
+    XLSX.writeFile(wb, `jql_fail_report_${execCount}execs.xlsx`);
+    status.textContent = `Exported ${rows.length} rows.`;
+  }
+
+  function exportBlockedExcel() {
+    const rows = window._lastBlockedResults || [];
+    if (!rows.length) { alert('No data to export.'); return; }
+
+    const COLS = [
+      { key: 'test_key',      label: 'Test Key' },
+      { key: 'summary',       label: 'Summary' },
+      { key: 'test_exec_key', label: 'Test Exec Key' },
+      { key: 'run_id',        label: 'Run ID' },
+      { key: 'status',        label: 'Status' },
+      { key: 'kpm_id',        label: 'KPM ID' },
+      { key: 'comment',       label: 'Comment' },
+      { key: '_assignee_name',  label: 'Assignee Name' },
+      { key: '_assignee_email', label: 'Assignee Email' },
+    ];
+
+    const flatRows = rows.map(r => {
+      const a = r.assignee || {};
+      return {
+        test_key:        r.test_key      || '',
+        summary:         r.summary       || r.test_summary || '',
+        test_exec_key:   r.test_exec_key || '',
+        run_id:          r.run_id        ?? '',
+        status:          r.status        || '',
+        kpm_id:          r.kpm_id        || '',
+        comment:         r.comment       || '',
+        _assignee_name:  a.displayName   || '',
+        _assignee_email: a.emailAddress  || '',
+      };
+    });
+
+    const wsData = [
+      COLS.map(c => c.label),
+      ...flatRows.map(r => COLS.map(c => r[c.key])),
+    ];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [12, 60, 16, 12, 10, 16, 80, 30, 40].map(w => ({ wch: w }));
+
+    const headerRange = XLSX.utils.decode_range(ws['!ref']);
+    for (let c = headerRange.s.c; c <= headerRange.e.c; c++) {
+      const cellAddr = XLSX.utils.encode_cell({ r: 0, c });
+      if (ws[cellAddr]) ws[cellAddr].s = { font: { bold: true } };
+    }
+
+    XLSX.utils.book_append_sheet(wb, ws, 'Blocked Report');
+    const filename = (storedTestPlanKey || 'testplan') + '_Blocked.xlsx';
+    XLSX.writeFile(wb, filename);
+  }
+
+  function exportFailCSV() {
+    const rows = window._lastFailResults || [];
+    const name = (storedTestPlanKey || 'testplan') + '_Failed.csv';
+    downloadCSV(name, rows);
+  }
+  function exportFailPDF() {
+    const rows = window._lastFailResults || [];
+    const mode = window._lastFailMode || 'Fail';
+    const name = (storedTestPlanKey || 'testplan') + '_Failed.pdf';
+    _exportPDF(name, rows, FAIL_COLS, `${storedTestPlanKey || ''} — ${mode} Report`);
+  }
+
+  function exportBlockedCSV() {
+    const rows = window._lastBlockedResults || [];
+    const name = (storedTestPlanKey || 'testplan') + '_Blocked.csv';
+    downloadCSV(name, rows);
+  }
+  function exportBlockedPDF() {
+    const rows = window._lastBlockedResults || [];
+    const name = (storedTestPlanKey || 'testplan') + '_Blocked.pdf';
+    _exportPDF(name, rows, BLOCKED_COLS, `${storedTestPlanKey || ''} — Blocked Report`);
+  }
+
+  // Server-side export helpers
+  function _downloadFromServer(path, filename) {
+    fetch(path).then(resp => {
+      if (!resp.ok) throw new Error('Server error: ' + resp.status);
+      return resp.blob();
+    }).then(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href = url; a.download = filename; document.body.appendChild(a); a.click(); a.remove();
+      URL.revokeObjectURL(url);
+    }).catch(err => alert('Export failed: ' + err.message));
+  }
+
+  function exportFailServerXLSX() {
+    if (!storedTestPlanKey) return alert('No test plan key');
+    const path = `${BASE}/export/fail/${storedTestPlanKey}.xlsx`;
+    _downloadFromServer(path, `${storedTestPlanKey}_Fails.xlsx`);
+  }
+  function exportFailServerPDF() {
+    if (!storedTestPlanKey) return alert('No test plan key');
+    const path = `${BASE}/export/fail/${storedTestPlanKey}.pdf`;
+    _downloadFromServer(path, `${storedTestPlanKey}_Fails.pdf`);
+  }
+
+  function exportBlockedServerXLSX() {
+    if (!storedTestPlanKey) return alert('No test plan key');
+    const path = `${BASE}/export/blocked/${storedTestPlanKey}.xlsx`;
+    _downloadFromServer(path, `${storedTestPlanKey}_Blocked.xlsx`);
+  }
+  function exportBlockedServerPDF() {
+    if (!storedTestPlanKey) return alert('No test plan key');
+    const path = `${BASE}/export/blocked/${storedTestPlanKey}.pdf`;
+    _downloadFromServer(path, `${storedTestPlanKey}_Blocked.pdf`);
+  }
+
+  // ── FAIL Overview ─────────────────────────────────────────────────────────
+
+  let _foCurrentPlan = null;
+
+  function foSetBanner(id, state, msg) {
+    const el = document.getElementById(id); if (!el) return;
+    el.className = 'status show ' + state;
+    el.innerHTML = state === 'loading' ? `<div class="spinner"></div><span>${msg}</span>` : msg;
+  }
+
+  async function foSelectRegion(region, label) {
+    document.querySelectorAll('#foRegionButtons button').forEach(b => { b.style.background=''; b.style.color='#6366f1'; });
+    event.currentTarget.style.background = '#6366f1';
+    event.currentTarget.style.color = '#fff';
+
+    const picker = document.getElementById('foPickerCard');
+    const result = document.getElementById('foResultCard');
+    picker.style.display = 'block';
+    result.style.display = 'none';
+    document.getElementById('foPickerGrid').innerHTML = '';
+    document.getElementById('foPickerTitle').textContent = `${label} — Select a Test Plan`;
+    document.getElementById('foPickerSubtitle').textContent = 'Fetching test plans from Confluence…';
+    foSetBanner('foPickerStatus', 'loading', 'Loading…');
+    picker.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    try {
+      const resp = await fetch(`${BASE}/confluence/testplans?region=${encodeURIComponent(region)}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const plans = data.test_plans || [];
+
+      foSetBanner('foPickerStatus', plans.length ? 'success' : 'error',
+        plans.length ? `✓ ${plans.length} test plan(s) found. Click one to load.` : 'No test plans found for this region.');
+      document.getElementById('foPickerSubtitle').textContent = `${plans.length} test plan(s) in ${label}`;
+
+      const grid = document.getElementById('foPickerGrid');
+      grid.innerHTML = '';
+      plans.forEach(item => {
+        const key = item.test_plan_key || '';
+        const wg  = item.working_group || item.workstream || '—';
+        const card = document.createElement('div');
+        card.style.cssText = 'cursor:pointer;border:1.5px solid #374151;border-radius:10px;padding:14px 18px;min-width:150px;max-width:190px;background:#1c1c1e;transition:border-color .15s,background .15s;text-align:center;';
+        card.innerHTML = `<div style="font-size:.7rem;color:#9ca3af;margin-bottom:4px;">${wg}</div><div style="font-weight:700;font-size:.9rem;color:#e5e7eb;">${key}</div>`;
+        card.onmouseenter = () => { card.style.borderColor='#6366f1'; card.style.background='#27272a'; };
+        card.onmouseleave = () => { card.style.borderColor='#374151'; card.style.background='#1c1c1e'; };
+        card.onclick = () => foLoadPlan(key);
+        grid.appendChild(card);
+      });
+    } catch (err) {
+      foSetBanner('foPickerStatus', 'error', 'Failed to load test plans: ' + err.message);
+    }
+  }
+
+  async function foLoadPlan(planKey) {
+    _foCurrentPlan = planKey;
+    const historical = document.getElementById('foHistoricalToggle').checked;
+    const resultCard = document.getElementById('foResultCard');
+    resultCard.style.display = 'block';
+    document.getElementById('foResultPlanKey').textContent = planKey;
+    document.getElementById('foTable').innerHTML = '';
+    document.getElementById('foSummaryRow').innerHTML = '';
+    document.getElementById('foExportBtn').style.display = 'none';
+    foSetBanner('foResultStatus', 'loading', `Fetching FAIL overview for ${planKey}…`);
+    resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    try {
+      const url = `${BASE}/xray/fail-overview/${planKey}${historical ? '?historical=true' : ''}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      document.getElementById('foSummaryRow').innerHTML =
+        summaryPill('Total FAIL', data.total_fail  ?? 0, 'badge-red') +
+        summaryPill('With KPM',   data.with_kpm    ?? 0, 'badge-green') +
+        summaryPill('No KPM',     data.without_kpm ?? 0, 'badge-gray') +
+        summaryPill('Time (s)',   Math.round(data.execution_time_seconds ?? 0), '');
+
+      const rows = data.rows || [];
+      window._lastFoResults = rows;
+      window._lastFoPlanKey  = planKey;
+
+      if (!rows.length) {
+        document.getElementById('foTable').innerHTML = '<p class="empty">No FAIL results found.</p>';
+        foSetBanner('foResultStatus', 'success', `No FAILs found for ${planKey} [${data.mode}]`);
+        return;
+      }
+
+      document.getElementById('foExportBtn').style.display = 'inline-flex';
+      document.getElementById('foTable').innerHTML = foRenderTable(rows);
+      foSetBanner('foResultStatus', 'success',
+        `✓ ${rows.length} FAIL(s) for ${planKey} [${data.mode}] — ${Math.round(data.execution_time_seconds ?? 0)}s`);
+    } catch (err) {
+      foSetBanner('foResultStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('foTable').innerHTML = '<p class="empty">Could not load data.</p>';
+    }
+  }
+
+  async function foReloadCurrent() { if (_foCurrentPlan) await foLoadPlan(_foCurrentPlan); }
+
+  function foRenderTable(rows) {
+    // Build data in the same shape jsonToTable expects so styling is identical
+    // to the existing Fail Report Latest table.
+    const mapped = rows.map(r => ({
+      test_key:      r.test_key      || '',
+      summary:       r.summary       || '',
+      executed_on:   r.executed_on   || '',
+      tester:        r.tester_name   ? (r.tester_email ? `<a href="mailto:${r.tester_email}" style="color:var(--pds-color-neutral-1);text-decoration:none;">${r.tester_name}</a>` : r.tester_name) : '—',
+      test_exec_key: r.test_exec_key || '',
+      kpm_id:        r.kpm_id        || 'No KPM',
+      comment:       r.comment       || '',
+    }));
+    return jsonToTable(mapped);
+  }
+
+  function foExportExcel() {
+    const rows = window._lastFoResults || [];
+    const key  = window._lastFoPlanKey || 'testplan';
+    if (!rows.length) return;
+    const headers = ['Test Key','Summary','Executed On','Tester','Tester Email','Test Exec Key','KPM ID','KPM URL','Comment'];
+    const wsData  = [headers, ...rows.map(r => [r.test_key||'',r.summary||'',r.executed_on||'',r.tester_name||'',r.tester_email||'',r.test_exec_key||'',r.kpm_id||'',r.kpm_url||'',r.comment||''])];
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [16,60,20,25,35,16,16,50,60].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, 'FAIL Overview');
+    XLSX.writeFile(wb, `${key}_FAIL_Overview.xlsx`);
+  }
+</script>
+</div><!-- /.pds-page -->
+
+<footer class="pds-footer">
+  <span>© 2026 Porsche Engineering — Internal Tool</span>
+  <span>MLB · Testing SOP Dashboard</span>
+</footer>
+
+</body>
+</html>

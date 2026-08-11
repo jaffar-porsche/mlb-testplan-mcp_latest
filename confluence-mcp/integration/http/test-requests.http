@@ -1,0 +1,76 @@
+### Test MCP Server Health
+GET http://localhost:8001/health
+Content-Type: application/json
+
+###
+
+### Test Confluence Connection
+GET http://localhost:8001/test_connection
+Content-Type: application/json
+
+###
+
+### List Available Spaces
+GET http://localhost:8001/spaces
+Content-Type: application/json
+
+###
+
+### Search for Content
+GET http://localhost:8001/search?query=documentation&limit=5
+Content-Type: application/json
+
+###
+
+### Get MCP Tools (if available)
+GET http://localhost:8001/mcp/tools
+Content-Type: application/json
+
+###
+
+### Create Test Page for Copilot Integration
+POST http://localhost:8001/create_page
+Content-Type: application/json
+
+{
+  "space_key": "TEST",
+  "title": "GitHub Copilot Integration Test",
+  "body": "<h1>GitHub Copilot Integration Test</h1><p>This page was created to test the GitHub Copilot integration with the Confluence MCP server.</p><h2>Features Tested</h2><ul><li>Page creation via MCP</li><li>Content formatting</li><li>Space integration</li></ul><p>Created on: <time>{{ new Date().toISOString() }}</time></p>"
+}
+
+###
+
+### Get Page by ID (replace 123456 with actual page ID from create response)
+GET http://localhost:8001/page/123456
+Content-Type: application/json
+
+###
+
+### Update Test Page
+PUT http://localhost:8001/page/123456
+Content-Type: application/json
+
+{
+  "title": "GitHub Copilot Integration Test - Updated",
+  "body": "<h1>GitHub Copilot Integration Test - Updated</h1><p>This page has been updated via the GitHub Copilot MCP integration.</p><h2>Update Features</h2><ul><li>Title modification</li><li>Content updates</li><li>Timestamp tracking</li></ul><p>Last updated: <time>{{ new Date().toISOString() }}</time></p>"
+}
+
+###
+
+### Search for Recently Created Test Page
+GET http://localhost:8001/search?query=GitHub%20Copilot%20Integration&limit=3
+Content-Type: application/json
+
+###
+
+### Test with Different Space (adjust space_key as needed)
+POST http://localhost:8001/create_page
+Content-Type: application/json
+
+{
+  "space_key": "PROJ",
+  "title": "Copilot MCP Integration Documentation",
+  "body": "<h1>GitHub Copilot MCP Integration</h1><p>This documentation describes how to use GitHub Copilot with the Confluence MCP server.</p><h2>Setup</h2><ol><li>Configure VS Code settings</li><li>Start MCP server</li><li>Enable GitHub Copilot</li></ol><h2>Usage</h2><p>Use natural language prompts with Copilot to interact with Confluence content.</p>"
+}
+
+###

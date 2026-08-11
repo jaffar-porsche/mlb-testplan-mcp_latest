@@ -1,0 +1,40 @@
+{
+  "mcpServers": {
+    "confluence": {
+      "command": "uvicorn",
+      "args": [
+        "mcp_server:app",
+        "--host", "0.0.0.0", 
+        "--port", "8001"
+      ],
+      "cwd": "<User-Dir>\\Workspace\\VSCode\\mcporsche\\confluence-mcp",
+      "env": {
+        "CONFLUENCE_PAT": "your_confluence_pat_here"
+      }
+    }
+  }
+}
+
+/* 
+To use this configuration:
+
+1. Copy this file to the Claude Desktop config location:
+   Windows: %APPDATA%\Claude\claude_desktop_config.json
+   macOS: ~/Library/Application Support/Claude/claude_desktop_config.json
+   Linux: ~/.config/claude/claude_desktop_config.json
+
+2. Replace "your_confluence_pat_here" with your actual Confluence PAT
+
+3. Update the "cwd" path to match your actual confluence-mcp directory
+
+4. Restart Claude Desktop
+
+5. Claude will now have access to Confluence through the MCP server
+
+Example prompts you can use with Claude:
+- "List all my Confluence spaces"
+- "Create a page titled 'Meeting Notes' in the PROJECT space with an agenda template"
+- "Search for pages about 'budget planning' in the FINANCE space"
+- "Get the content of the page with ID 123456"
+- "Update the 'Project Status' page with the latest progress"
+*/

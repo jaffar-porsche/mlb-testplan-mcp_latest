@@ -1,0 +1,73 @@
+### Health Check
+GET {{baseUrl}}/health
+Content-Type: {{contentType}}
+
+### Test Confluence Connection
+GET {{baseUrl}}/test_connection
+Content-Type: {{contentType}}
+
+### List All Spaces
+GET {{baseUrl}}/spaces
+Content-Type: {{contentType}}
+
+### Search Content (Global)
+GET {{baseUrl}}/search?query=test&limit=10
+Content-Type: {{contentType}}
+
+### Search Content in Specific Space
+GET {{baseUrl}}/search?query=documentation&space_key=TEST&limit=5
+Content-Type: {{contentType}}
+
+### Simple Search in Space
+GET {{baseUrl}}/search_simple?space_key=TEST&query=page&limit=5
+Content-Type: {{contentType}}
+
+### Create a New Page
+POST {{baseUrl}}/create_page
+Content-Type: {{contentType}}
+
+{
+  "space_key": "TEST",
+  "title": "API Test Page {{$datetime iso8601}}",
+  "body": "<h1>Test Page from VS Code</h1><p>This page was created using the REST Client extension in VS Code.</p><h2>Features</h2><ul><li>Easy API testing</li><li>Environment variables</li><li>Request history</li></ul><p><strong>Created:</strong> {{$datetime iso8601}}</p>"
+}
+
+### Create a Simple Page
+POST {{baseUrl}}/create_page_simple
+Content-Type: {{contentType}}
+
+{
+  "space_key": "TEST",
+  "title": "Simple Test Page {{$timestamp}}",
+  "body": "<h1>Simple Test</h1><p>This is a simple test page created with the simplified endpoint.</p>"
+}
+
+### Get Page by ID (replace with actual page ID from create response)
+@pageId = 123456
+GET {{baseUrl}}/page/{{pageId}}
+Content-Type: {{contentType}}
+
+### Update Page (replace with actual page ID)
+PUT {{baseUrl}}/page/{{pageId}}
+Content-Type: {{contentType}}
+
+{
+  "title": "Updated Test Page",
+  "body": "<h1>Updated Content</h1><p>This page has been updated via the REST API.</p><p><strong>Updated:</strong> {{$datetime iso8601}}</p>"
+}
+
+### Update Page Body Only
+PUT {{baseUrl}}/page/{{pageId}}
+Content-Type: {{contentType}}
+
+{
+  "body": "<h1>New Body Content</h1><p>Only the body content has been updated.</p><p><em>Title remains the same.</em></p>"
+}
+
+### Update Page Title Only
+PUT {{baseUrl}}/page/{{pageId}}
+Content-Type: {{contentType}}
+
+{
+  "title": "New Page Title {{$timestamp}}"
+}

@@ -1,0 +1,168 @@
+{
+  "info": {
+    "name": "Confluence MCP Server",
+    "description": "Test collection for Confluence MCP Server endpoints",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8001",
+      "type": "string"
+    },
+    {
+      "key": "space_key",
+      "value": "TEST",
+      "type": "string",
+      "description": "Change this to a valid space key in your Confluence"
+    },
+    {
+      "key": "page_id",
+      "value": "",
+      "type": "string",
+      "description": "Will be set after creating a page"
+    }
+  ],
+  "item": [
+    {
+      "name": "1. List Spaces",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/spaces",
+          "host": ["{{base_url}}"],
+          "path": ["spaces"]
+        },
+        "description": "List all available Confluence spaces"
+      }
+    },
+    {
+      "name": "2. Search Content",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/search?query=test&limit=10",
+          "host": ["{{base_url}}"],
+          "path": ["search"],
+          "query": [
+            {
+              "key": "query",
+              "value": "test"
+            },
+            {
+              "key": "limit",
+              "value": "10"
+            },
+            {
+              "key": "space_key",
+              "value": "",
+              "disabled": true
+            }
+          ]
+        },
+        "description": "Search for content in Confluence"
+      }
+    },
+    {
+      "name": "3. Create Page",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"space_key\": \"{{space_key}}\",\n  \"title\": \"Test Page from Postman\",\n  \"body\": \"<h1>Test Page</h1><p>This is a test page created via Postman.</p><ul><li>Item 1</li><li>Item 2</li></ul>\",\n  \"parent_id\": null\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/create_page",
+          "host": ["{{base_url}}"],
+          "path": ["create_page"]
+        },
+        "description": "Create a new Confluence page"
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "exec": [
+              "if (responseCode.code === 200) {",
+              "    const jsonData = pm.response.json();",
+              "    pm.collectionVariables.set('page_id', jsonData.id);",
+              "    console.log('Page created with ID:', jsonData.id);",
+              "}"
+            ],
+            "type": "text/javascript"
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Get Page",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/page/{{page_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["page", "{{page_id}}"]
+        },
+        "description": "Get details for a specific page (requires page_id from previous request)"
+      }
+    },
+    {
+      "name": "5. Update Page",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Updated Test Page from Postman\",\n  \"body\": \"<h1>Updated Test Page</h1><p>This page has been updated via Postman.</p><p><strong>Update timestamp:</strong> {{$timestamp}}</p>\"\n}"
+        },
+        "url": {
+          "raw": "{{base_url}}/page/{{page_id}}",
+          "host": ["{{base_url}}"],
+          "path": ["page", "{{page_id}}"]
+        },
+        "description": "Update an existing page (requires page_id from create request)"
+      }
+    },
+    {
+      "name": "6. Search in Specific Space",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/search?query=test&space_key={{space_key}}&limit=5",
+          "host": ["{{base_url}}"],
+          "path": ["search"],
+          "query": [
+            {
+              "key": "query",
+              "value": "test"
+            },
+            {
+              "key": "space_key",
+              "value": "{{space_key}}"
+            },
+            {
+              "key": "limit",
+              "value": "5"
+            }
+          ]
+        },
+        "description": "Search for content within a specific space"
+      }
+    }
+  ]
+}
