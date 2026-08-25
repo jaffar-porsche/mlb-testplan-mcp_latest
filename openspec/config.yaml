@@ -1,0 +1,33 @@
+schema: spec-driven
+context: |
+  mlb-testplan-mcp is a Python/FastAPI MCP server suite that automates test plan
+  failure analysis for Porsche MLB EVO vehicle integration testing. It comprises
+  three microservices: a Jira/Xray MCP proxy, a Confluence MCP proxy, and the main
+  mlb-testplan MCP server that orchestrates fail/blocked report generation with
+  KPM defect extraction. The stack is Python 3.11, FastAPI, httpx, pandas, and
+  Playwright, deployed via Docker Compose. Validate changes with
+  `cd jira-mcp && pip install -r requirements.txt && pytest` and
+  `pip install -r requirements.txt && python -c "from server import app; print('server OK')"`.
+  OpenSpec artifacts on disk are the planning source of truth. See AGENT.md for
+  agent routing rules and MCP tool workflow conventions.
+rules:
+  proposal:
+    - Include sections for Why, What Changes, Capabilities, and Impact.
+    - Use kebab-case capability names.
+    - New capabilities map to `specs/<capability>/spec.md`.
+    - List modified capabilities only when `openspec/specs/<capability>/spec.md` already exists and requirement behavior changes.
+  specs:
+    - Use one spec file per capability.
+    - Every requirement includes a stable `REQ-...` ID and at least one `#### Scenario`.
+    - New capabilities use `## ADDED Requirements`.
+    - Use `## MODIFIED Requirements` only for existing capabilities and existing requirements.
+  design:
+    - Include architecture and data flow.
+    - Describe new or changed interfaces and contracts.
+    - Include the file-level technical approach.
+    - Cover security and governance considerations.
+  tasks:
+    - Use ordered checkbox tasks.
+    - Put tests before implementation.
+    - Include exact files and commands where known.
+    - Include documentation updates for behavior changes.
