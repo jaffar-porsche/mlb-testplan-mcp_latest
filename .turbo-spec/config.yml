@@ -1,0 +1,163 @@
+# config.yml — engine default configuration (turbo-spec repo root).
+#
+# This is the LIVE engine-level config, and also the reference to copy: to
+# configure your own repo, copy this file to <your-repo>/.turbo-spec/config.yml
+# and edit the values. A consumer config fully replaces this engine default.
+#
+# Config lookup (first match wins):
+#   1. <workdir>/.turbo-spec/config.yml   — your repo (consumer config)
+#   2. <engine_dir>/config.yml            — this file (engine default)
+#
+# Precedence (highest wins):
+#   explicit CLI flags / kwargs > consumer config > engine default > built-in
+#
+# The file is OPTIONAL — when absent (or empty), the engine uses its built-in
+# defaults. But a file that is PRESENT and wrong is a hard error: a malformed
+# file, an unknown key (typo), a wrong shape, or an invalid value stops the run
+# with a clear message so you fix the config instead of it silently no-op'ing.
+#
+# Full reference: docs/configuration.md
+
+# ---------------------------------------------------------------------------
+# settings — engine behavior knobs
+# ---------------------------------------------------------------------------
+settings:
+  # logging (string, default: INFO)
+  #   Engine logging level: DEBUG, INFO, WARNING, ERROR, or CRITICAL. Applied at
+  #   engine startup. An unknown value falls back to INFO.
+  logging: INFO
+
+  # fallback_workflow (workflow reference, default: unset)
+  #   Blueprint used as the static fallback when:
+  #     - no explicit blueprint is passed, AND
+  #     - no routing label matches a workflow, AND
+  #     - the AI classifier produces no match (or is disabled).
+  #   Accepts the same reference forms as any blueprint argument:
+  #     - a bare built-in name, e.g.   feature
+  #     - a path to a YAML file, e.g.  .turbo-spec/workflows/my-default.yml
+  #       (relative paths resolve against your repo root)
+  #   The referenced workflow runs in full, with its own skills, tools, agents
+  #   and stages. When unset, there is NO fallback: a request that matches no
+  #   routing label and is not auto-classified fails (no implicit default).
+  fallback_workflow: feature
+
+  # checkouts_dir (path, default: ~/.turbo-spec/checkouts)
+  #   Root for engine-managed target-repo checkouts. When a run's --repo is not
+  #   checked out at --workdir/CWD, the engine clones it to
+  #   <checkouts_dir>/<owner>/<repo> and uses that as the workspace.
+  #   Env override: TURBO_SPEC_CHECKOUTS_DIR.
+  # checkouts_dir: ~/.turbo-spec/checkouts
+
+  # sandbox_enabled (bool, default: true) — DEV/DEBUG ONLY
+  #   The single lever for disabling the agent sandbox (egress firewall +
+  #   container isolation) for EVERY workflow — there is no env-var or
+  #   per-blueprint disable. Set false to fully skip the agent-sandbox image —
+  #   the engine never requires, pulls, or fails on it — so a missing/unpublished
+  #   image can't block the run. Never set false in production.
+  #   See docs/security-model.md#disable-the-sandbox-development-only.
+  # sandbox_enabled: true
+
+  # model_relay_enabled (bool, default: false) — opt-in credential-free sandbox
+  #   Route Copilot model calls through a host-side relay so the sandbox holds
+  #   NO GitHub token (the relay injects it host-side). Default false forwards
+  #   the token into the box instead. Requires a contract-v4 agent-sandbox image.
+  #   See docs/security-model.md.
+  # model_relay_enabled: true
+
+  # --- triage/routing agents (issue #755) ----------------------------------
+  # Each triage/routing agent that calls an LLM for a control-flow decision has
+  # its own component subsection. Every key is optional; leave it out (or set
+  # it null) to use the default shown.
+
+  # watcher — agentic failure-watcher triage (auto-resume vs escalate-to-human)
+  watcher:
+    # triage_model (string | null, default: claude-sonnet-4.6)
+    #   LLM for the triage call. Provider is hardcoded copilot.
+    # triage_model: claude-sonnet-4.6
+
+    # max_resume_attempts (int >= 0, default: 1)
+    #   Max auto-resume attempts per session before escalating to a human.
+    #   0 disables auto-resume (comment only). The agentic-watcher workflow's
+    #   max_resumes input overrides this per call.
+    # max_resume_attempts: 1
+
+  # feedback_router — AI feedback router (--resume --feedback stage routing)
+  feedback_router:
+    # model (string | null, default: unset -> blueprint provider)
+    #   LLM for the router. When unset, inherits the workflow blueprint's
+    #   primary model_provider.
+    # model: null
+
+    # min_confidence (float 0.0-1.0, default: 0.6)
+    #   Minimum confidence to accept the proposed restart stage. Below this,
+    #   the router falls back to the first non-completed stage.
+    # min_confidence: 0.6
+
+  # classifier — AI workflow classifier (picks a workflow when no label matches)
+  classifier:
+    # model (string | null, default: gpt-5.4-mini)
+    #   LLM for the classifier. Provider is hardcoded copilot.
+    # model: null
+
+    # min_confidence (float 0.0-1.0, default: 0.6)
+    #   Minimum confidence to accept an auto-selected workflow on the non-gated
+    #   resolver path. Below this, the resolver abstains and uses the fallback.
+    # min_confidence: 0.6
+
+# ---------------------------------------------------------------------------
+# feature_toggles — on/off switches for optional engine behavior
+# ---------------------------------------------------------------------------
+feature_toggles:
+  # auto_classify_workflows (bool, default: true)
+  #   When true, the engine may run the AI workflow classifier (auto-detect)
+  #   to choose a workflow when no explicit blueprint and no routing label
+  #   match exist. Set to false to skip the classifier entirely and go straight
+  #   to the static fallback (settings.fallback_workflow); with none configured
+  #   and no label match, the run fails.
+  #
+  #   Disabled for now: blueprint resolution is static label routing -> fallback
+  #   workflow, with no classifier model call.
+  auto_classify_workflows: false
+
+  # profiling (bool, default: false)
+  #   When true, the engine samples itself in wall-clock time from the moment
+  #   the target workspace and this configuration are resolved through to
+  #   shutdown, and writes one profile pair — HTML for a human, JSON for tooling —
+  #   under <engine_dir>/.turbo-spec/out/profiling/. Answers "where did the
+  #   seconds go", which billed cost and span durations do not.
+  #
+  #   What it costs: the optional `profiling` extra (`uv sync --extra profiling`)
+  #   must be installed, or the run says so once and continues with no profile;
+  #   a statistical sampler runs for the duration of the run; one artifact pair
+  #   per execution segment is written locally and, in CI, published as a
+  #   short-retention job artifact. When false, none of that happens — the
+  #   profiler package is never even imported.
+  #
+  #   What a profile exposes: function names, file paths, line numbers, the
+  #   thread name and the interpreter's search path — never variable values, so
+  #   no prompt, issue or model output appears in it. It is NOT redacted, so
+  #   treat it as code-structure disclosure.
+  #
+  #   Off by default: this is diagnostic capability, not always-on telemetry.
+  profiling: false
+
+# ---------------------------------------------------------------------------
+# telemetry — local-run telemetry forwarding (issue #625)
+# ---------------------------------------------------------------------------
+telemetry:
+  # enabled (bool, default: true)
+  #   When true, a local `workflow-skeleton run` forwards its non-secret,
+  #   structural telemetry to New Relic via a CI dispatch — the ingest key
+  #   never touches the laptop. This is the opt-out lever for local telemetry;
+  #   set to false to skip the forward entirely.
+  enabled: true
+
+  # region (string, default: eu)  — eu|us; maps to NR_REGION in the forwarder.
+  # region: eu
+
+  # dispatch — where the otel-forward CI job is dispatched. Optional; the
+  #   defaults auto-detect the current repo and dispatch its ai.yml.
+  # dispatch:
+  #   repo: ""            # default: current repo (owner/name)
+  #   workflow: ai.yml    # caller workflow to dispatch
+  #   action: otel        # workflow_dispatch input discriminator
