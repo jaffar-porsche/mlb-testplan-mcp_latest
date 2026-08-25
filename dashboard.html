@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Testplan SOP Dashboard — Porsche</title>
+  <title>Testplan Analysis Dashboard — Porsche</title>
 
   <!-- Porsche Next font -->
   <link rel="preconnect" href="https://fonts.porsche.com" crossorigin />
@@ -484,7 +484,7 @@
 <!-- ── Page ── -->
 <div class="pds-page">
 
-  <h1 class="pds-page-title">Testplan SOP <span>Dashboard</span></h1>
+  <h1 class="pds-page-title">Testplan Analysis <span>Dashboard</span></h1>
   <p class="pds-page-subtitle">Resolve test plan keys, analyse FAIL &amp; BLOCKED reports, and trigger mail notifications.</p>
 
 <!-- ── Input Card ── -->
@@ -497,8 +497,166 @@
       Analyze
     </button>
     <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
+    <button class="btn btn-secondary" id="btnPriority" onclick="openPriorityModal()">Priority</button>
+    <button class="btn btn-secondary" id="btnFailAll" onclick="openFailAllModal()">FAIL All</button>
+    <button class="btn btn-secondary" id="btnBlockedAll" onclick="openBlockedAllModal()">BLOCKED All</button>
+    <button class="btn btn-secondary" id="btnCloneConfluence" onclick="cloneConfluence()">Clone Confluence</button>
   </div>
 </div>
+
+<!-- ── FAIL All Modal ── -->
+<div id="failAllModalOverlay" onclick="closeFailAllModal(event)" style="display:none;position:fixed;inset:0;background:rgba(1,2,5,.55);z-index:1100;">
+  <div id="failAllModal" onclick="event.stopPropagation()" style="position:relative;max-width:1040px;width:94vw;margin:4vh auto;max-height:92vh;overflow-y:auto;background:var(--pds-color-surface);border:1px solid var(--pds-color-neutral-3);box-shadow:var(--pds-shadow-medium);padding:32px;font-family:var(--pds-font);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <h2 style="margin:0;font-size:1rem;color:var(--pds-color-primary);font-weight:700;">FAIL All — Every FAIL under a Region OR Working Group</h2>
+      <button onclick="closeFailAllModal()" style="background:none;border:none;color:var(--pds-color-neutral-1);font-size:1.6rem;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <p style="color:var(--pds-color-neutral-1);font-size:.85rem;margin-bottom:18px;">Pick a Region OR a Working Group — every matching Test Plan is resolved and scanned concurrently for FAIL results.</p>
+
+    <!-- Step 1: Mode toggle -->
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      <button class="btn btn-secondary" id="failAllModeRegionBtn" onclick="failAllSetMode('region')">By Region</button>
+      <button class="btn btn-secondary" id="failAllModeWgBtn" onclick="failAllSetMode('working_group')">By Working Group</button>
+    </div>
+
+    <!-- Step 2: Region buttons -->
+    <div id="failAllRegionStep" style="display:none;">
+      <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Select a Region</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="failAllRegionButtons">
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing ECE','ECE')">ECE</button>
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing NAR','NAR')">NAR</button>
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing JPN','JPN')">JPN</button>
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing KOR','KOR')">KOR</button>
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing TWN','TWN')">TWN</button>
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing Hong-Kong','HKG')">Hong Kong</button>
+        <button class="btn btn-secondary" onclick="failAllRun('region','Testing Macau','MAC')">Macau</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Working Group buttons -->
+    <div id="failAllWgStep" style="display:none;">
+      <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Select a Working Group</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="failAllWgButtons">
+        <button class="btn btn-secondary" onclick="failAllRun('working_group','Navigation','Navigation')">Navigation</button>
+        <button class="btn btn-secondary" onclick="failAllRun('working_group','Phone-Connectivity-SPI','Phone-Connectivity-SPI')">Phone-Connectivity-SPI</button>
+        <button class="btn btn-secondary" onclick="failAllRun('working_group','Core HMI / GBK','Core HMI / GBK')">Core HMI / GBK</button>
+        <button class="btn btn-secondary" onclick="failAllRun('working_group','Media / Tuner (Entertainment)','Media / Tuner (Entertainment)')">Media / Tuner (Entertainment)</button>
+        <button class="btn btn-secondary" onclick="failAllRun('working_group','App Store / 3rd Party','App Store / 3rd Party')">App Store / 3rd Party</button>
+        <button class="btn btn-secondary" onclick="failAllRun('working_group','Digital assistant','Digital assistant')">Digital assistant</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div id="failAllResultStep" style="display:none;margin-top:24px;">
+      <div class="status" id="failAllResultStatus"></div>
+      <details id="failAllJqlBox" style="margin:12px 0;background:var(--pds-color-background-surface,#f7f7f9);border:1px solid var(--pds-color-neutral-3);padding:10px 14px;font-size:.75rem;">
+        <summary style="cursor:pointer;font-weight:700;color:var(--pds-color-neutral-1);">Combined JQL</summary>
+        <code id="failAllJqlText" style="display:block;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--pds-color-primary);"></code>
+      </details>
+      <div id="failAllTableArea"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── BLOCKED All Modal ── -->
+<div id="blockedAllModalOverlay" onclick="closeBlockedAllModal(event)" style="display:none;position:fixed;inset:0;background:rgba(1,2,5,.55);z-index:1100;">
+  <div id="blockedAllModal" onclick="event.stopPropagation()" style="position:relative;max-width:1040px;width:94vw;margin:4vh auto;max-height:92vh;overflow-y:auto;background:var(--pds-color-surface);border:1px solid var(--pds-color-neutral-3);box-shadow:var(--pds-shadow-medium);padding:32px;font-family:var(--pds-font);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <h2 style="margin:0;font-size:1rem;color:var(--pds-color-primary);font-weight:700;">BLOCKED All — Every BLOCKED under a Region OR Working Group</h2>
+      <button onclick="closeBlockedAllModal()" style="background:none;border:none;color:var(--pds-color-neutral-1);font-size:1.6rem;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <p style="color:var(--pds-color-neutral-1);font-size:.85rem;margin-bottom:18px;">Pick a Region OR a Working Group — every matching Test Plan is resolved and scanned concurrently for BLOCKED results.</p>
+
+    <!-- Step 1: Mode toggle -->
+    <div style="display:flex;gap:12px;margin-bottom:16px;">
+      <button class="btn btn-secondary" id="blockedAllModeRegionBtn" onclick="blockedAllSetMode('region')">By Region</button>
+      <button class="btn btn-secondary" id="blockedAllModeWgBtn" onclick="blockedAllSetMode('working_group')">By Working Group</button>
+    </div>
+
+    <!-- Step 2: Region buttons -->
+    <div id="blockedAllRegionStep" style="display:none;">
+      <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Select a Region</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="blockedAllRegionButtons">
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing ECE','ECE')">ECE</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing NAR','NAR')">NAR</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing JPN','JPN')">JPN</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing KOR','KOR')">KOR</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing TWN','TWN')">TWN</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing Hong-Kong','HKG')">Hong Kong</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('region','Testing Macau','MAC')">Macau</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Working Group buttons -->
+    <div id="blockedAllWgStep" style="display:none;">
+      <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Select a Working Group</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="blockedAllWgButtons">
+        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Navigation','Navigation')">Navigation</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Phone-Connectivity-SPI','Phone-Connectivity-SPI')">Phone-Connectivity-SPI</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Core HMI / GBK','Core HMI / GBK')">Core HMI / GBK</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Media / Tuner (Entertainment)','Media / Tuner (Entertainment)')">Media / Tuner (Entertainment)</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','App Store / 3rd Party','App Store / 3rd Party')">App Store / 3rd Party</button>
+        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Digital assistant','Digital assistant')">Digital assistant</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div id="blockedAllResultStep" style="display:none;margin-top:24px;">
+      <div class="status" id="blockedAllResultStatus"></div>
+      <details id="blockedAllJqlBox" style="margin:12px 0;background:var(--pds-color-background-surface,#f7f7f9);border:1px solid var(--pds-color-neutral-3);padding:10px 14px;font-size:.75rem;">
+        <summary style="cursor:pointer;font-weight:700;color:var(--pds-color-neutral-1);">Combined JQL</summary>
+        <code id="blockedAllJqlText" style="display:block;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--pds-color-primary);"></code>
+      </details>
+      <div id="blockedAllTableArea"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Priority Modal ── -->
+<div id="priorityModalOverlay" onclick="closePriorityModal(event)" style="display:none;position:fixed;inset:0;background:rgba(1,2,5,.55);z-index:1100;">
+  <div id="priorityModal" onclick="event.stopPropagation()" style="position:relative;max-width:920px;width:92vw;margin:4vh auto;max-height:92vh;overflow-y:auto;background:var(--pds-color-surface);border:1px solid var(--pds-color-neutral-3);box-shadow:var(--pds-shadow-medium);padding:32px;font-family:var(--pds-font);">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+      <h2 style="margin:0;font-size:1rem;color:var(--pds-color-primary);font-weight:700;">FAILs by Priority — Browse by Region &amp; Working Group</h2>
+      <button onclick="closePriorityModal()" style="background:none;border:none;color:var(--pds-color-neutral-1);font-size:1.6rem;cursor:pointer;line-height:1;">&times;</button>
+    </div>
+    <p id="prioritySubtitle" style="color:var(--pds-color-neutral-1);font-size:.85rem;margin-bottom:18px;">Select a region to list test plans, then click a plan to view all FAILs with timestamp, tester and KPM links.</p>
+
+    <!-- Step 1: Region -->
+    <div id="priorityRegionStep">
+      <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">1. Select a Region</div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="priorityRegionButtons">
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing ECE','ECE')">ECE</button>
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing NAR','NAR')">NAR</button>
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing JPN','JPN')">JPN</button>
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing KOR','KOR')">KOR</button>
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing TWN','TWN')">TWN</button>
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing Hong-Kong','HKG')">Hong Kong</button>
+        <button class="btn btn-secondary" onclick="prioritySelectRegion('Testing Macau','MAC')">Macau</button>
+      </div>
+    </div>
+
+    <!-- Step 2: Working Group -->
+    <div id="priorityWgStep" style="display:none;margin-top:22px;">
+      <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">2. Select a Working Group <span id="priorityWgRegionLabel" style="color:var(--pds-color-brand);text-transform:none;letter-spacing:normal;"></span></div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="priorityWgButtons">
+        <button class="btn btn-secondary" onclick="prioritySelectWG('Navigation')">Navigation</button>
+        <button class="btn btn-secondary" onclick="prioritySelectWG('Phone-Connectivity-SPI')">Phone-Connectivity-SPI</button>
+        <button class="btn btn-secondary" onclick="prioritySelectWG('Core HMI / GBK')">Core HMI / GBK</button>
+        <button class="btn btn-secondary" onclick="prioritySelectWG('Media / Tuner (Entertainment)')">Media / Tuner (Entertainment)</button>
+        <button class="btn btn-secondary" onclick="prioritySelectWG('App Store / 3rd Party')">App Store / 3rd Party</button>
+        <button class="btn btn-secondary" onclick="prioritySelectWG('Digital assistant')">Digital assistant</button>
+      </div>
+    </div>
+
+    <!-- Step 3: Results -->
+    <div id="priorityResultStep" style="display:none;margin-top:24px;">
+      <div class="status" id="priorityResultStatus"></div>
+      <div id="prioritySummaryRow" style="display:flex;gap:16px;flex-wrap:wrap;margin:14px 0;"></div>
+      <div id="priorityBuckets"></div>
+    </div>
+  </div>
+</div>
+
 
 <!-- ── Status Banner ── -->
 <div class="card" style="padding:14px 24px;">
@@ -576,7 +734,7 @@
 
 <!-- ── FAIL Overview ── -->
 <div class="card" id="failOverviewLaunchCard">
-  <h2>&#128202; FAIL Overview — Browse by Region</h2>
+  <h2>FAIL / BLOCKED Overview — Browse by Region</h2>
   <p style="color:#9ca3af;font-size:.85rem;margin-bottom:18px;">Select a region to list test plans, then click a plan to view all FAILs with timestamp, tester and KPM links.</p>
   <div style="display:flex;flex-wrap:wrap;gap:12px;" id="foRegionButtons">
     <button class="btn btn-secondary" onclick="foSelectRegion('Testing ECE','ECE')"       style="border-color:#6366f1;color:#6366f1;">ECE</button>
@@ -597,16 +755,18 @@
 </div>
 
 <div class="card" id="foResultCard" style="display:none;">
-  <h2>FAIL Overview — <span id="foResultPlanKey"></span></h2>
+  <h2><span id="foResultTitle">FAIL Overview</span> — <span id="foResultPlanKey"></span></h2>
   <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:8px;">
-    <label style="font-size:.82rem;color:#9ca3af;display:flex;align-items:center;gap:6px;cursor:pointer;">
+    <label id="foHistoricalLabel" style="font-size:.82rem;color:#9ca3af;display:flex;align-items:center;gap:6px;cursor:pointer;">
       <input type="checkbox" id="foHistoricalToggle" onchange="foReloadCurrent()" style="accent-color:#6366f1;"> Include historical FAILs
     </label>
     <button class="btn btn-primary" id="foExportBtn" onclick="foExportExcel()" style="display:none;">Export Excel</button>
+    <button class="btn btn-secondary" id="foAiBtn" onclick="foAiSummary()" style="display:none;border-color:#a855f7;color:#a855f7;">&#10024; AI Summary</button>
   </div>
   <div class="status" id="foResultStatus"></div>
   <div id="foSummaryRow" style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:14px;"></div>
   <div id="foTable"></div>
+  <div id="foAiBox" style="display:none;"></div>
 </div>
 
 <!-- ── Mail Trigger Card ── -->
@@ -720,7 +880,7 @@
           cell = `<a href="${jiraUrl}" target="_blank" rel="noopener" style="color:var(--pds-color-brand);text-decoration:none;font-weight:600;">${val}</a>`;
         }
 
-        html += `<td>${cell}</td>`;
+        html += `<td${k === 'kpm_id' ? ' style="white-space:nowrap;"' : ''}>${cell}</td>`;
       });
       html += '</tr>';
     });
@@ -1686,6 +1846,7 @@
   // ── FAIL Overview ─────────────────────────────────────────────────────────
 
   let _foCurrentPlan = null;
+  let _foCurrentMode = 'fail';
 
   function foSetBanner(id, state, msg) {
     const el = document.getElementById(id); if (!el) return;
@@ -1724,11 +1885,16 @@
         const key = item.test_plan_key || '';
         const wg  = item.working_group || item.workstream || '—';
         const card = document.createElement('div');
-        card.style.cssText = 'cursor:pointer;border:1.5px solid #374151;border-radius:10px;padding:14px 18px;min-width:150px;max-width:190px;background:#1c1c1e;transition:border-color .15s,background .15s;text-align:center;';
-        card.innerHTML = `<div style="font-size:.7rem;color:#9ca3af;margin-bottom:4px;">${wg}</div><div style="font-weight:700;font-size:.9rem;color:#e5e7eb;">${key}</div>`;
+        card.style.cssText = 'border:1.5px solid #374151;border-radius:10px;padding:14px 18px;min-width:170px;max-width:210px;background:#1c1c1e;transition:border-color .15s,background .15s;text-align:center;';
+        card.innerHTML =
+          `<div style="font-size:.7rem;color:#9ca3af;margin-bottom:4px;">${wg}</div>` +
+          `<div style="font-weight:700;font-size:.9rem;color:#e5e7eb;margin-bottom:10px;">${key}</div>` +
+          `<div style="display:flex;gap:8px;justify-content:center;">` +
+            `<button class="btn btn-secondary" style="padding:6px 14px;font-size:.72rem;border-color:var(--pds-color-error);color:var(--pds-color-error);" onclick="foLoadPlan('${key}','fail')">FAIL</button>` +
+            `<button class="btn btn-secondary" style="padding:6px 14px;font-size:.72rem;border-color:#a65f00;color:#a65f00;" onclick="foLoadPlan('${key}','blocked')">BLOCKED</button>` +
+          `</div>`;
         card.onmouseenter = () => { card.style.borderColor='#6366f1'; card.style.background='#27272a'; };
         card.onmouseleave = () => { card.style.borderColor='#374151'; card.style.background='#1c1c1e'; };
-        card.onclick = () => foLoadPlan(key);
         grid.appendChild(card);
       });
     } catch (err) {
@@ -1736,26 +1902,37 @@
     }
   }
 
-  async function foLoadPlan(planKey) {
+  async function foLoadPlan(planKey, mode = 'fail') {
     _foCurrentPlan = planKey;
-    const historical = document.getElementById('foHistoricalToggle').checked;
+    _foCurrentMode = mode;
+    const isBlocked = mode === 'blocked';
+    const label = isBlocked ? 'BLOCKED' : 'FAIL';
+    const historical = !isBlocked && document.getElementById('foHistoricalToggle').checked;
     const resultCard = document.getElementById('foResultCard');
     resultCard.style.display = 'block';
+    document.getElementById('foResultTitle').textContent = isBlocked ? 'BLOCKED Overview' : 'FAIL Overview';
+    document.getElementById('foHistoricalLabel').style.display = isBlocked ? 'none' : 'flex';
     document.getElementById('foResultPlanKey').textContent = planKey;
     document.getElementById('foTable').innerHTML = '';
     document.getElementById('foSummaryRow').innerHTML = '';
     document.getElementById('foExportBtn').style.display = 'none';
-    foSetBanner('foResultStatus', 'loading', `Fetching FAIL overview for ${planKey}…`);
+    document.getElementById('foAiBtn').style.display = 'none';
+    document.getElementById('foAiBox').style.display = 'none';
+    document.getElementById('foAiBox').innerHTML = '';
+    foSetBanner('foResultStatus', 'loading', `Fetching ${label} overview for ${planKey}…`);
     resultCard.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
-      const url = `${BASE}/xray/fail-overview/${planKey}${historical ? '?historical=true' : ''}`;
+      const url = isBlocked
+        ? `${BASE}/xray/blocked-overview/${planKey}`
+        : `${BASE}/xray/fail-overview/${planKey}${historical ? '?historical=true' : ''}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
+      const total = isBlocked ? (data.total_blocked ?? 0) : (data.total_fail ?? 0);
       document.getElementById('foSummaryRow').innerHTML =
-        summaryPill('Total FAIL', data.total_fail  ?? 0, 'badge-red') +
+        summaryPill(`Total ${label}`, total, isBlocked ? 'badge-yellow' : 'badge-red') +
         summaryPill('With KPM',   data.with_kpm    ?? 0, 'badge-green') +
         summaryPill('No KPM',     data.without_kpm ?? 0, 'badge-gray') +
         summaryPill('Time (s)',   Math.round(data.execution_time_seconds ?? 0), '');
@@ -1765,50 +1942,471 @@
       window._lastFoPlanKey  = planKey;
 
       if (!rows.length) {
-        document.getElementById('foTable').innerHTML = '<p class="empty">No FAIL results found.</p>';
-        foSetBanner('foResultStatus', 'success', `No FAILs found for ${planKey} [${data.mode}]`);
+        document.getElementById('foTable').innerHTML = `<p class="empty">No ${label} results found.</p>`;
+        foSetBanner('foResultStatus', 'success', `No ${label}s found for ${planKey} [${data.mode}]`);
         return;
       }
 
       document.getElementById('foExportBtn').style.display = 'inline-flex';
-      document.getElementById('foTable').innerHTML = foRenderTable(rows);
+      document.getElementById('foAiBtn').style.display = 'none';
+      document.getElementById('foAiBox').style.display = 'none';
+      document.getElementById('foTable').innerHTML = foRenderTable(rows, true);
       foSetBanner('foResultStatus', 'success',
-        `✓ ${rows.length} FAIL(s) for ${planKey} [${data.mode}] — ${Math.round(data.execution_time_seconds ?? 0)}s`);
+        `✓ ${rows.length} ${label}(s) for ${planKey} [${data.mode}] — ${Math.round(data.execution_time_seconds ?? 0)}s`);
+      // Auto-trigger per-row AI summaries (uses the fail- or blocked- overview LLM route)
+      foFetchRowSummaries(rows, planKey, mode);
     } catch (err) {
       foSetBanner('foResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('foTable').innerHTML = '<p class="empty">Could not load data.</p>';
     }
   }
 
-  async function foReloadCurrent() { if (_foCurrentPlan) await foLoadPlan(_foCurrentPlan); }
+  async function foReloadCurrent() { if (_foCurrentPlan) await foLoadPlan(_foCurrentPlan, _foCurrentMode || 'fail'); }
 
-  function foRenderTable(rows) {
+  async function foAiSummary() {
+    const rows = window._lastFoResults || [];
+    if (!rows.length) return;
+    const isBlocked = _foCurrentMode === 'blocked';
+    const box = document.getElementById('foAiBox');
+    box.style.display = 'block';
+    box.innerHTML = '<div style="color:#a855f7;font-size:.78rem;font-weight:700;margin-bottom:8px;">&#10024; AI Summary</div><span style="color:#9ca3af;">&#8987; Analysing…</span>';
+    try {
+      const url = isBlocked
+        ? `${BASE}/xray/blocked-overview/${window._lastFoPlanKey}/ai-summary`
+        : `${BASE}/xray/fail-overview/${window._lastFoPlanKey}/ai-summary`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rows,
+          plan_summary: document.getElementById('foResultPlanKey').textContent,
+          mode: isBlocked ? 'latest' : (document.getElementById('foHistoricalToggle').checked ? 'historical' : 'latest'),
+        }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      // Render markdown-style bullets as HTML
+      const html = (data.summary || '')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.+?)\*/g, '<em>$1</em>')
+        .replace(/^#{1,3} (.+)$/gm, '<strong>$1</strong>')
+        .replace(/^[-•] (.+)$/gm, '&bull; $1')
+        .replace(/\n/g, '<br>');
+      box.innerHTML = `<div style="margin-bottom:10px;font-size:.78rem;color:#a855f7;font-weight:700;letter-spacing:.03em;">&#10024; AI Summary — ${data.model}</div>${html}`;
+    } catch (err) {
+      box.innerHTML = `<div style="color:#a855f7;font-size:.78rem;font-weight:700;margin-bottom:8px;">&#10024; AI Summary</div><span style="color:#ef4444;">Failed: ${err.message}</span>`;
+    }
+  }
+
+  function foRenderTable(rows, withAi = true) {
     // Build data in the same shape jsonToTable expects so styling is identical
     // to the existing Fail Report Latest table.
-    const mapped = rows.map(r => ({
-      test_key:      r.test_key      || '',
-      summary:       r.summary       || '',
-      executed_on:   r.executed_on   || '',
-      tester:        r.tester_name   ? (r.tester_email ? `<a href="mailto:${r.tester_email}" style="color:var(--pds-color-neutral-1);text-decoration:none;">${r.tester_name}</a>` : r.tester_name) : '—',
-      test_exec_key: r.test_exec_key || '',
-      kpm_id:        r.kpm_id        || 'No KPM',
-      comment:       r.comment       || '',
-    }));
+    const mapped = rows.map(r => {
+      const key = r.test_key || '';
+      const row = {
+        test_key:      key,
+        description:   r.summary       || '',
+      };
+      if (withAi) {
+        row.ai_summary = `<span class="ai-row-sum" data-key="${key}" style="color:#9ca3af;font-style:italic;">⏳ analysing…</span>`;
+      }
+      row.executed_on   = r.executed_on   || '';
+      row.tester        = r.tester_name   ? (r.tester_email ? `<a href="mailto:${r.tester_email}" style="color:var(--pds-color-neutral-1);text-decoration:none;">${r.tester_name}</a>` : r.tester_name) : '—';
+      row.test_exec_key = r.test_exec_key || '';
+      row.kpm_id        = r.kpm_id        || 'No KPM';
+      row.comment       = r.comment       || '';
+      return row;
+    });
     return jsonToTable(mapped);
+  }
+
+  async function foFetchRowSummaries(rows, planKey, mode = 'fail') {
+    if (!rows.length) return;
+    const isBlocked = mode === 'blocked';
+    try {
+      const url = isBlocked
+        ? `${BASE}/xray/blocked-overview/${planKey}/row-summaries`
+        : `${BASE}/xray/fail-overview/${planKey}/row-summaries`;
+      const resp = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rows }),
+      });
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      // Guard: only apply if the user is still viewing the same plan
+      if (window._lastFoPlanKey !== planKey) return;
+      const summaries = data.summaries || {};
+      window._lastFoRowSummaries = summaries;
+      document.querySelectorAll('.ai-row-sum').forEach(el => {
+        const key = el.getAttribute('data-key');
+        const txt = summaries[key];
+        if (txt) {
+          el.style.color = '#1f2937';
+          el.style.fontStyle = 'normal';
+          el.textContent = txt;
+        } else {
+          el.style.color = '#6b7280';
+          el.textContent = '—';
+        }
+      });
+    } catch (err) {
+      document.querySelectorAll('.ai-row-sum').forEach(el => {
+        el.style.color = '#ef4444';
+        el.style.fontStyle = 'normal';
+        el.textContent = 'AI failed';
+      });
+    }
   }
 
   function foExportExcel() {
     const rows = window._lastFoResults || [];
     const key  = window._lastFoPlanKey || 'testplan';
+    const sums = window._lastFoRowSummaries || {};
     if (!rows.length) return;
-    const headers = ['Test Key','Summary','Executed On','Tester','Tester Email','Test Exec Key','KPM ID','KPM URL','Comment'];
-    const wsData  = [headers, ...rows.map(r => [r.test_key||'',r.summary||'',r.executed_on||'',r.tester_name||'',r.tester_email||'',r.test_exec_key||'',r.kpm_id||'',r.kpm_url||'',r.comment||''])];
+    const isBlocked = _foCurrentMode === 'blocked';
+    const label = isBlocked ? 'BLOCKED' : 'FAIL';
+    const headers = ['Test Key','Description','AI Summary','Executed On','Tester','Tester Email','Test Exec Key','KPM ID','KPM URL','Comment'];
+    const wsData  = [headers, ...rows.map(r => [r.test_key||'',r.summary||'',sums[r.test_key]||'',r.executed_on||'',r.tester_name||'',r.tester_email||'',r.test_exec_key||'',r.kpm_id||'',r.kpm_url||'',r.comment||''])];
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(wsData);
-    ws['!cols'] = [16,60,20,25,35,16,16,50,60].map(w=>({wch:w}));
-    XLSX.utils.book_append_sheet(wb, ws, 'FAIL Overview');
-    XLSX.writeFile(wb, `${key}_FAIL_Overview.xlsx`);
+    ws['!cols'] = [16,60,60,20,25,35,16,16,50,60].map(w=>({wch:w}));
+    XLSX.utils.book_append_sheet(wb, ws, `${label} Overview`);
+    XLSX.writeFile(wb, `${key}_${label}_Overview.xlsx`);
   }
+
+  // ── Priority Modal ────────────────────────────────────────────────────────
+
+  let _priorityRegion = null, _priorityRegionLabel = null;
+
+  function cloneConfluence() {
+    // TODO: functionality to be added
+  }
+
+
+  function openPriorityModal() {
+    _priorityRegion = null;
+    _priorityRegionLabel = null;
+    document.getElementById('priorityRegionStep').style.display = 'block';
+    document.getElementById('priorityWgStep').style.display = 'none';
+    document.getElementById('priorityResultStep').style.display = 'none';
+    document.getElementById('prioritySubtitle').textContent =
+      'Select a region to list test plans, then click a plan to view all FAILs with timestamp, tester and KPM links.';
+    document.querySelectorAll('#priorityRegionButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+    document.querySelectorAll('#priorityWgButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+    document.getElementById('priorityModalOverlay').style.display = 'block';
+    document.addEventListener('keydown', _priorityEscHandler);
+  }
+
+  function closePriorityModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'priorityModalOverlay') return;
+    document.getElementById('priorityModalOverlay').style.display = 'none';
+    document.removeEventListener('keydown', _priorityEscHandler);
+  }
+
+  function _priorityEscHandler(e) {
+    if (e.key === 'Escape') closePriorityModal();
+  }
+
+  function prioritySelectRegion(region, label) {
+    _priorityRegion = region;
+    _priorityRegionLabel = label;
+    document.querySelectorAll('#priorityRegionButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+    event.currentTarget.style.background = 'var(--pds-color-brand)';
+    event.currentTarget.style.borderColor = 'var(--pds-color-brand)';
+    event.currentTarget.style.color = '#fff';
+
+    document.getElementById('priorityWgRegionLabel').textContent = `(${label})`;
+    document.getElementById('priorityWgStep').style.display = 'block';
+    document.getElementById('priorityResultStep').style.display = 'none';
+    document.querySelectorAll('#priorityWgButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+  }
+
+  let _priorityData = null;
+
+  async function prioritySelectWG(workingGroup) {
+    document.querySelectorAll('#priorityWgButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+    event.currentTarget.style.background = 'var(--pds-color-brand)';
+    event.currentTarget.style.borderColor = 'var(--pds-color-brand)';
+    event.currentTarget.style.color = '#fff';
+
+    const resultStep = document.getElementById('priorityResultStep');
+    resultStep.style.display = 'block';
+    document.getElementById('prioritySummaryRow').innerHTML = '';
+    document.getElementById('priorityBuckets').innerHTML = '';
+    foSetBanner('priorityResultStatus', 'loading', `Fetching FAILs for ${_priorityRegionLabel} / ${workingGroup}…`);
+
+    try {
+      const url = `${BASE}/test-results/failures/by-region-working-group?region=${encodeURIComponent(_priorityRegion)}&working_group=${encodeURIComponent(workingGroup)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const grouped = data.grouped || {};
+      const totalFail = data.total_fail_all_priorities ?? 0;
+      _priorityData = grouped;
+
+      document.getElementById('prioritySummaryRow').innerHTML = '';
+
+      if (!totalFail) {
+        document.getElementById('priorityBuckets').innerHTML = '<p class="empty">No FAIL results found.</p>';
+        foSetBanner('priorityResultStatus', 'success', `No FAILs found for ${_priorityRegionLabel} / ${workingGroup}`);
+        return;
+      }
+
+      const order = ['high', 'medium', 'low', 'other'];
+      const meta = {
+        high:   { label: 'High',   color: 'var(--pds-color-error)' },
+        medium: { label: 'Medium', color: '#a65f00' },
+        low:    { label: 'Low',    color: 'var(--pds-color-success)' },
+        other:  { label: 'Other',  color: 'var(--pds-color-neutral-1)' },
+      };
+
+      let boxesHtml = '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px;font-family:var(--pds-font);">';
+      order.forEach(bucket => {
+        const b = grouped[bucket] || { count: 0, results: [] };
+        const m = meta[bucket];
+        boxesHtml += `
+          <div id="priorityBox_${bucket}" onclick="priorityToggleBucket('${bucket}')"
+               style="cursor:pointer;background:var(--pds-color-surface);border:1px solid var(--pds-color-neutral-3);padding:20px 16px;text-align:center;box-shadow:var(--pds-shadow-low);border-top:4px solid ${m.color};transition:box-shadow .15s,transform .12s;">
+            <div style="font-size:.72rem;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:${m.color};margin-bottom:6px;">${m.label}</div>
+            <div style="font-size:1.8rem;font-weight:800;color:var(--pds-color-primary);">${b.count}</div>
+            <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-top:4px;">${b.count === 1 ? 'test' : 'tests'} &middot; click to ${b.count ? 'expand' : 'view'}</div>
+          </div>`;
+      });
+      boxesHtml += '</div>';
+      boxesHtml += '<div id="priorityExpandArea" style="margin-top:20px;"></div>';
+
+      document.getElementById('priorityBuckets').innerHTML = boxesHtml;
+      foSetBanner('priorityResultStatus', 'success', `✓ ${totalFail} FAIL(s) for ${_priorityRegionLabel} / ${workingGroup}`);
+    } catch (err) {
+      foSetBanner('priorityResultStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('priorityBuckets').innerHTML = '<p class="empty">Could not load data.</p>';
+    }
+  }
+
+  let _priorityExpandedBucket = null;
+
+  function priorityToggleBucket(bucket) {
+    const area = document.getElementById('priorityExpandArea');
+    // Reset all box highlight states
+    ['high','medium','low','other'].forEach(b => {
+      const box = document.getElementById(`priorityBox_${b}`);
+      if (box) box.style.boxShadow = 'var(--pds-shadow-low)';
+    });
+
+    if (_priorityExpandedBucket === bucket) {
+      // collapse
+      _priorityExpandedBucket = null;
+      area.innerHTML = '';
+      return;
+    }
+
+    _priorityExpandedBucket = bucket;
+    const box = document.getElementById(`priorityBox_${bucket}`);
+    if (box) box.style.boxShadow = 'var(--pds-shadow-medium)';
+
+    const results = (_priorityData && _priorityData[bucket] && _priorityData[bucket].results) || [];
+    if (!results.length) {
+      area.innerHTML = '<p class="empty">No FAIL results in this category.</p>';
+      return;
+    }
+    area.innerHTML = priorityRenderTable(results);
+  }
+
+  function priorityRenderTable(rows) {
+    const mapped = (rows || []).map(r => ({
+      test_key:      r.test_key || '',
+      priority:      r.priority || '',
+      test_plan_key: r.test_plan_key || '',
+      description:   r.summary || '',
+      executed_on:   r.executed_on || '',
+      tester:        r.tester_name || '—',
+      test_exec_key: r.test_exec_key || '',
+      kpm_id:        r.kpm_id || 'No KPM',
+      comment:       r.comment || '',
+    }));
+    return jsonToTable(mapped);
+  }
+
+  // ── FAIL All Modal ───────────────────────────────────────────────────────
+
+  let _failAllMode = null;
+
+  function openFailAllModal() {
+    _failAllMode = null;
+    document.getElementById('failAllRegionStep').style.display = 'none';
+    document.getElementById('failAllWgStep').style.display = 'none';
+    document.getElementById('failAllResultStep').style.display = 'none';
+    document.getElementById('failAllModeRegionBtn').style.background = '';
+    document.getElementById('failAllModeRegionBtn').style.color = '';
+    document.getElementById('failAllModeWgBtn').style.background = '';
+    document.getElementById('failAllModeWgBtn').style.color = '';
+    document.getElementById('failAllModalOverlay').style.display = 'block';
+    document.addEventListener('keydown', _failAllEscHandler);
+  }
+
+  function closeFailAllModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'failAllModalOverlay') return;
+    document.getElementById('failAllModalOverlay').style.display = 'none';
+    document.removeEventListener('keydown', _failAllEscHandler);
+  }
+
+  function _failAllEscHandler(e) {
+    if (e.key === 'Escape') closeFailAllModal();
+  }
+
+  function failAllSetMode(mode) {
+    _failAllMode = mode;
+    document.getElementById('failAllRegionStep').style.display = mode === 'region' ? 'block' : 'none';
+    document.getElementById('failAllWgStep').style.display = mode === 'working_group' ? 'block' : 'none';
+    document.getElementById('failAllResultStep').style.display = 'none';
+
+    const regionBtn = document.getElementById('failAllModeRegionBtn');
+    const wgBtn = document.getElementById('failAllModeWgBtn');
+    regionBtn.style.background = mode === 'region' ? 'var(--pds-color-brand)' : '';
+    regionBtn.style.color = mode === 'region' ? '#fff' : '';
+    wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
+    wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
+  }
+
+  async function failAllRun(mode, value, label) {
+    const btnGroup = mode === 'region' ? '#failAllRegionButtons button' : '#failAllWgButtons button';
+    document.querySelectorAll(btnGroup).forEach(b => { b.style.background = ''; b.style.color = ''; });
+    if (event && event.currentTarget) {
+      event.currentTarget.style.background = 'var(--pds-color-brand)';
+      event.currentTarget.style.color = '#fff';
+    }
+
+    const resultStep = document.getElementById('failAllResultStep');
+    resultStep.style.display = 'block';
+    document.getElementById('failAllJqlText').textContent = '';
+    document.getElementById('failAllTableArea').innerHTML = '';
+    foSetBanner('failAllResultStatus', 'loading', `Fetching all FAILs for ${label}…`);
+
+    try {
+      const param = mode === 'region' ? 'region' : 'working_group';
+      const url = `${BASE}/test-results/failures/fail-all?${param}=${encodeURIComponent(value)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      document.getElementById('failAllJqlText').textContent = data.combined_jql || '';
+
+      const results = data.results || [];
+      if (!results.length) {
+        document.getElementById('failAllTableArea').innerHTML = '<p class="empty">No FAIL results found.</p>';
+        foSetBanner('failAllResultStatus', 'success', `No FAILs found for ${label} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        return;
+      }
+
+      const mapped = results.map(r => ({
+        test_key:      r.test_key || '',
+        test_plan_key: r.test_plan_key || '',
+        working_group: r.working_group || '',
+        description:   r.summary || '',
+        executed_on:   r.executed_on || '',
+        tester:        r.tester_name || '—',
+        test_exec_key: r.test_exec_key || '',
+        kpm_id:        r.kpm_id || 'No KPM',
+        comment:       r.comment || '',
+      }));
+      document.getElementById('failAllTableArea').innerHTML = jsonToTable(mapped);
+      foSetBanner('failAllResultStatus', 'success', `✓ ${data.total_fail} FAIL(s) for ${label} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+    } catch (err) {
+      foSetBanner('failAllResultStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('failAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
+    }
+  }
+
+  let _blockedAllMode = null;
+
+  function openBlockedAllModal() {
+    _blockedAllMode = null;
+    document.getElementById('blockedAllRegionStep').style.display = 'none';
+    document.getElementById('blockedAllWgStep').style.display = 'none';
+    document.getElementById('blockedAllResultStep').style.display = 'none';
+    document.getElementById('blockedAllModeRegionBtn').style.background = '';
+    document.getElementById('blockedAllModeRegionBtn').style.color = '';
+    document.getElementById('blockedAllModeWgBtn').style.background = '';
+    document.getElementById('blockedAllModeWgBtn').style.color = '';
+    document.getElementById('blockedAllModalOverlay').style.display = 'block';
+    document.addEventListener('keydown', _blockedAllEscHandler);
+  }
+
+  function closeBlockedAllModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'blockedAllModalOverlay') return;
+    document.getElementById('blockedAllModalOverlay').style.display = 'none';
+    document.removeEventListener('keydown', _blockedAllEscHandler);
+  }
+
+  function _blockedAllEscHandler(e) {
+    if (e.key === 'Escape') closeBlockedAllModal();
+  }
+
+  function blockedAllSetMode(mode) {
+    _blockedAllMode = mode;
+    document.getElementById('blockedAllRegionStep').style.display = mode === 'region' ? 'block' : 'none';
+    document.getElementById('blockedAllWgStep').style.display = mode === 'working_group' ? 'block' : 'none';
+    document.getElementById('blockedAllResultStep').style.display = 'none';
+
+    const regionBtn = document.getElementById('blockedAllModeRegionBtn');
+    const wgBtn = document.getElementById('blockedAllModeWgBtn');
+    regionBtn.style.background = mode === 'region' ? 'var(--pds-color-brand)' : '';
+    regionBtn.style.color = mode === 'region' ? '#fff' : '';
+    wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
+    wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
+  }
+
+  async function blockedAllRun(mode, value, label) {
+    const btnGroup = mode === 'region' ? '#blockedAllRegionButtons button' : '#blockedAllWgButtons button';
+    document.querySelectorAll(btnGroup).forEach(b => { b.style.background = ''; b.style.color = ''; });
+    if (event && event.currentTarget) {
+      event.currentTarget.style.background = 'var(--pds-color-brand)';
+      event.currentTarget.style.color = '#fff';
+    }
+
+    const resultStep = document.getElementById('blockedAllResultStep');
+    resultStep.style.display = 'block';
+    document.getElementById('blockedAllJqlText').textContent = '';
+    document.getElementById('blockedAllTableArea').innerHTML = '';
+    foSetBanner('blockedAllResultStatus', 'loading', `Fetching all BLOCKEDs for ${label}…`);
+
+    try {
+      const param = mode === 'region' ? 'region' : 'working_group';
+      const url = `${BASE}/test-results/blocked/blocked-all?${param}=${encodeURIComponent(value)}`;
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+
+      document.getElementById('blockedAllJqlText').textContent = data.combined_jql || '';
+
+      const results = data.results || [];
+      if (!results.length) {
+        document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">No BLOCKED results found.</p>';
+        foSetBanner('blockedAllResultStatus', 'success', `No BLOCKEDs found for ${label} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        return;
+      }
+
+      const mapped = results.map(r => ({
+        test_key:      r.test_key || '',
+        test_plan_key: r.test_plan_key || '',
+        working_group: r.working_group || '',
+        description:   r.summary || '',
+        executed_on:   r.executed_on || '',
+        tester:        r.tester_name || '—',
+        test_exec_key: r.test_exec_key || '',
+        kpm_id:        r.kpm_id || 'No KPM',
+        comment:       r.comment || '',
+      }));
+      document.getElementById('blockedAllTableArea').innerHTML = jsonToTable(mapped);
+      foSetBanner('blockedAllResultStatus', 'success', `✓ ${data.total_blocked} BLOCKED(s) for ${label} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+    } catch (err) {
+      foSetBanner('blockedAllResultStatus', 'error', 'Failed: ' + err.message);
+      document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
+    }
+  }
+
 </script>
 </div><!-- /.pds-page -->
 

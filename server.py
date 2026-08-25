@@ -1,11 +1,12 @@
 import re
 import os
+import subprocess
 import httpx
-from fastapi import FastAPI, Query, Body
+from fastapi import FastAPI, Query, Body, Request
 from fastapi_mcp import FastApiMCP
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
-from fastapi.responses import HTMLResponse
+from dotenv import load_dotenv, dotenv_values
+from fastapi.responses import HTMLResponse, JSONResponse
 import json
 from bs4 import BeautifulSoup
 from fastapi import HTTPException
@@ -32,6 +33,21 @@ from fastapi import HTTPException
 
 
 logger = logging.getLogger(__name__)
+
+# ────────────────────────────────────────────────────────────────────────────
+# File logging: capture everything (info/warnings/errors) that happens while
+# the dashboard is running to a log file next to server.py, so issues can be
+# diagnosed after the fact without needing to keep the console window open.
+# ────────────────────────────────────────────────────────────────────────────
+_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server_log.txt")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+    handlers=[
+        logging.FileHandler(_LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
 
 # Max pages to scan when paginating test runs (100 runs/page = 2000 max)
 _MAX_PAGES = 20
@@ -520,7 +536,13 @@ def get_client(timeout=30):
     return httpx.Client(proxy=PROXY, timeout=timeout, verify=False)
 
 def get_local_client(timeout=30):
-    transport = httpx.HTTPTransport(proxy=None)
+    # retries=2 lets httpx auto-retry connection failures (ECONNRESET / ECONNREFUSED)
+    # against the local jira-mcp/confluence-mcp proxies. This absorbs brief
+    # startup races when those servers are launched by an external process
+    # manager (e.g. the Electron installer) instead of run manually, so a
+    # request that lands a beat before the proxy is fully listening doesn't
+    # bubble up as a hard failure to the browser ("Failed to fetch").
+    transport = httpx.HTTPTransport(proxy=None, retries=2)
     return httpx.Client(
         timeout=timeout,
         verify=False,
@@ -528,7 +550,119 @@ def get_local_client(timeout=30):
         trust_env=False
     )
 
-app = FastAPI(title="MLB TestPlan MCP", version="1.0.0")
+# --- Direct Xray Cloud API fallback -----------------------------------------
+# Some environments run jira-mcp via a separately-managed process (e.g. an
+# Electron installer app) whose bundled build may be an older copy that lacks
+# the /xray/* proxy routes entirely. When that happens every /xray/* call
+# 404s with a generic "route not found" body. Rather than depend on that
+# external process being up to date, fall back to calling the real Xray
+# Cloud REST API directly using the same JIRA_PAT/JIRA_BASE_URL configured
+# for jira-mcp (read straight from jira-mcp/.env so no duplicate config is
+# needed). This makes this app resilient regardless of which jira-mcp build
+# happens to be listening on :8000.
+#
+# Credentials are looked up in priority order:
+#   1. This process's own environment (JIRA_BASE_URL / JIRA_PAT)
+#   2. jira-mcp/.env in this workspace
+#   3. The Electron MCP-Installer app's own jira-mcp/.env (its install
+#      location varies per machine; %LOCALAPPDATA% covers the common case)
+_JIRA_MCP_ENV_CANDIDATES = [
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "jira-mcp", ".env"),
+    os.path.join(
+        os.getenv("LOCALAPPDATA", ""),
+        "Programs", "MCP-Installer", "mcp-servers", "jira-mcp", ".env",
+    ),
+]
+_jira_mcp_env: dict = {}
+for _candidate in _JIRA_MCP_ENV_CANDIDATES:
+    if _candidate and os.path.exists(_candidate):
+        _jira_mcp_env = dotenv_values(_candidate)
+        if _jira_mcp_env.get("JIRA_PAT"):
+            break
+_DIRECT_JIRA_BASE_URL = os.getenv("JIRA_BASE_URL") or _jira_mcp_env.get("JIRA_BASE_URL") or "https://api.skyway.porsche.com/jira"
+_DIRECT_JIRA_PAT = os.getenv("JIRA_PAT") or _jira_mcp_env.get("JIRA_PAT")
+_DIRECT_XRAY_BASE = f"{_DIRECT_JIRA_BASE_URL}/rest/raven/2.0"
+
+# Tri-state cache: becomes False the first time we detect the local proxy has
+# no Xray routes, so subsequent calls skip straight to the direct fallback
+# instead of paying for a wasted round-trip every time.
+_xray_proxy_has_routes = True
+
+# The jira-mcp proxy renames a couple of collection sub-resources when
+# translating to the real Xray Cloud API (e.g. "tests" -> "test"). Mirror
+# that here so the direct fallback hits the same real endpoints.
+_XRAY_DIRECT_RENAMES = {"tests": "test", "testexecutions": "testexecution"}
+
+
+def _direct_xray_path(xray_suffix: str) -> str:
+    parts = [_XRAY_DIRECT_RENAMES.get(p, p) for p in xray_suffix.strip("/").split("/")]
+    return "/api/" + "/".join(parts)
+
+
+def _is_missing_route_404(resp: httpx.Response) -> bool:
+    """True for FastAPI's generic 'route not found' 404, distinct from a
+    real upstream Xray 404 (which the proxy would have forwarded with a
+    different/richer body)."""
+    if resp.status_code != 404:
+        return False
+    try:
+        return resp.json() == {"detail": "Not Found"}
+    except Exception:
+        return False
+
+
+def xray_request(method: str, xray_suffix: str, *, params=None, json=None, timeout=60) -> httpx.Response:
+    """
+    Call an Xray endpoint (suffix without the leading '/xray', e.g.
+    '/testplan/{key}/tests'). Prefers the local jira-mcp proxy at :8000, but
+    transparently falls back to calling the Xray Cloud REST API directly if
+    the proxy build has no /xray/* routes at all. The fallback decision is
+    cached for the rest of this process's lifetime.
+    """
+    global _xray_proxy_has_routes
+    if _xray_proxy_has_routes:
+        with get_local_client(timeout=timeout) as client:
+            resp = client.request(method, f"{XRAY_BASE_URL}/xray{xray_suffix}", params=params, json=json)
+        if not _is_missing_route_404(resp):
+            return resp
+        logging.warning(
+            "Local jira-mcp proxy has no Xray routes (missing /xray%s) - "
+            "falling back to direct Xray Cloud API calls for this session.",
+            xray_suffix,
+        )
+        _xray_proxy_has_routes = False
+
+    if not _DIRECT_JIRA_PAT:
+        raise HTTPException(
+            status_code=502,
+            detail=(
+                "jira-mcp proxy has no Xray support and no JIRA_PAT is configured "
+                "for direct fallback (set JIRA_PAT in jira-mcp/.env)."
+            ),
+        )
+    transport = httpx.HTTPTransport(proxy=None, retries=2)
+    with httpx.Client(
+        transport=transport,
+        timeout=timeout,
+        verify=False,
+        headers={"Authorization": f"Bearer {_DIRECT_JIRA_PAT}"},
+    ) as client:
+        return client.request(
+            method,
+            f"{_DIRECT_XRAY_BASE}{_direct_xray_path(xray_suffix)}",
+            params=params,
+            json=json,
+        )
+
+app = FastAPI(
+    title="MLB TestPlan MCP",
+    version="1.0.0",
+    openapi_tags=[
+        {"name": "prod_working", "description": "Confirmed working production endpoints: copy a Confluence page (unpublished draft), clone a single Jira issue, clone all Test Plans from a Confluence page."},
+        {"name": "Clone Issue", "description": "Clone a single Jira issue."},
+        {"name": "Clone Test Plans", "description": "Clone Confluence Test Plan pages and their linked Jira Test Plan issues."},
+    ],
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -536,6 +670,23 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    """
+    Guarantee every request gets a real HTTP response (with CORS headers)
+    instead of the ASGI worker dropping the connection. A dropped/reset
+    connection is what the browser reports as a generic "Failed to fetch"
+    with no further detail — turning it into a normal JSON error lets the
+    dashboard show the actual reason instead.
+    """
+    logging.exception("Unhandled error in %s %s", request.method, request.url.path)
+    return JSONResponse(
+        status_code=502,
+        content={"detail": f"{type(exc).__name__}: {exc}"},
+        headers={"Access-Control-Allow-Origin": "*"},
+    )
 
 ALIASES.update({
     # Metadata variants from HTML
@@ -612,9 +763,16 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
             return None
 
         soup = BeautifulSoup(body, "html.parser")
-        jira_pattern = re.compile(r"\b(MLBEVO-\d+)\b")
+        # Match any project prefix (MLBEVO, OTA, etc.) — not hardcoded to
+        # MLBEVO, since UAT/other pages use different project keys.
+        jira_pattern = re.compile(r"\b([A-Z][A-Z0-9]+-\d+)\b")
+        # Region token appears in testExecutionTests(...) under multiple
+        # naming variants across pages/regions, e.g.:
+        #   MIB4_SOP_TEs_NAR   (plural "TEs", no numeric suffix)
+        #   MIB4_SOP1_TE_ECE   (singular "TE", with "1" after SOP)
+        # Accept any "SOP<optional digits>_TE(s)?_<REGION>" form.
         region_cell_pattern = re.compile(
-            r"testPlanTests\((MLBEVO-\d+)\).*?testExecutionTests\('MIB4_SOP_TEs_(\w+)'",
+            r"testPlanTests\(([A-Z][A-Z0-9]+-\d+)\).*?testExecutionTests\('MIB4_SOP\d*_TEs?_(\w+)'",
             re.IGNORECASE | re.DOTALL
         )
         wg_patterns = [
@@ -1242,34 +1400,198 @@ def get_confluence_page(page_id: str = CONFLUENCE_PAGE_ID):
         }
 
 
+def _classify_jql_label(query_text: str) -> str:
+    """Classify a raw jqlQuery string into a human-readable panel label,
+    matching the Test Plan Board / Results table layout used in the SOP page."""
+    ql = query_text.lower()
+    if "testplanfoldertests" in ql:
+        return "Orphans"
+    if "testexecutiontests" in ql:
+        return "Not Yet Planned" if "not in testexecutiontests" in ql else "Planned"
+    if "testrunstatus" in ql:
+        if "pass" in ql:
+            return "PASS"
+        if "fail" in ql:
+            return "FAIL"
+        if "blocked" in ql:
+            return "BLOCKED"
+        if "aborted" in ql:
+            return "ABORTED"
+        if "executing" in ql:
+            return "Executing"
+        if "todo" in ql:
+            return "ToDo"
+    if re.search(r"status\s*!=\s*closed", ql):
+        return "For Spec"
+    return "Total Scope"
+
+
+def _build_confluence_testplan_entries(page_id: str) -> list[dict]:
+    """
+    Build the per-key {key, region, working_group, jqls} entries for a
+    Confluence SOP page — the exact same logic used by
+    /confluence/{page_id}/testplan-jqls, factored out so other endpoints
+    (e.g. the test-plan clone endpoint) can filter on it without duplicating
+    the JQL-extraction/classification code.
+    """
+    with get_local_client(timeout=30) as client:
+        resp = client.get(f"{LOCAL_API_URL}/page/{page_id}")
+        if resp.status_code in (301, 302):
+            resp = client.get(resp.headers.get("location", ""))
+        resp.raise_for_status()
+        data = resp.json()
+
+    body = data.get("body", "") or ""
+    if not body:
+        raise HTTPException(status_code=404, detail="Confluence page has no body content")
+
+    key_maps = _extract_test_plan_key_from_confluence({}, debug=True, page_id=page_id) or []
+    key_region = {m["key"]: m["region"] for m in key_maps if m.get("region") and m["region"] != "?"}
+    key_wg = {m["key"]: m["working_group"] for m in key_maps if m.get("working_group") and m["working_group"] != "?"}
+
+    _TOKEN_TO_LOCATION = {
+        "ECE": "Testing ECE",
+        "NAR": "Testing NAR",
+        "JPN": "Testing JPN",
+        "KOR": "Testing KOR",
+        "TWN": "Testing TWN",
+        "HKG": "Testing Hong-Kong",
+        "MAC": "Testing Macau",
+    }
+
+    jira_pattern = re.compile(r"\b([A-Z][A-Z0-9]+-\d+)\b")
+    jql_pattern = re.compile(r'ac:name="jqlQuery">(.*?)</ac:parameter>', re.DOTALL)
+
+    key_jqls: dict[str, dict[str, str]] = {}
+    for raw_query in jql_pattern.findall(body):
+        query = _html.unescape(raw_query).strip()
+        keys_in_query = jira_pattern.findall(query)
+        if not keys_in_query:
+            continue
+        owner_key = keys_in_query[0]
+        label = _classify_jql_label(query)
+        key_jqls.setdefault(owner_key, {})
+        # Keep first occurrence per label (avoids overwriting with duplicate rows)
+        key_jqls[owner_key].setdefault(label, query)
+
+    all_keys = set(key_jqls.keys()) | set(key_region.keys()) | set(key_wg.keys())
+
+    results = []
+    for key in all_keys:
+        region_token = key_region.get(key, "")
+        region_name = _TOKEN_TO_LOCATION.get(region_token, region_token or "?")
+        wg_name = key_wg.get(key, "?")
+        results.append({
+            "key": key,
+            "region": region_name,
+            "working_group": wg_name,
+            "jqls": key_jqls.get(key, {}),
+        })
+    return results
+
+
+@app.get(
+    "/confluence/{page_id}/testplan-jqls",
+    operation_id="get_confluence_testplan_jqls",
+    summary="Extract all Test Plan Board / Results JQL queries per Region + Working Group from a Confluence page",
+    tags=["prod_working"],
+)
+def get_confluence_testplan_jqls(
+    page_id: str,
+    region: str = Query(None, description="Optional region filter, e.g. 'Testing ECE' or 'ECE'"),
+    working_group: str = Query(None, description="Optional working group filter, e.g. 'Navigation'"),
+):
+    """
+    Fetch the given Confluence SOP page and return, for every Test Plan key found
+    on the page, the region + working group it belongs to along with every
+    embedded Jira macro JQL query (Test Plan Board: Total Scope / Orphans /
+    Not Yet Planned / Planned / For Spec, and Results: PASS / FAIL / BLOCKED /
+    ABORTED / ToDo / Executing).
+
+    Response shape (JQL only — no live counts/values):
+    [
+        {
+            "region": "Testing ECE",
+            "working_group": "Navigation",
+            "jqls": {
+                "Total Scope": "...",
+                "Orphans": "...",
+                "Not Yet Planned": "...",
+                "Planned": "...",
+                "For Spec": "...",
+                "PASS": "...",
+                "FAIL": "...",
+                "BLOCKED": "...",
+                "ABORTED": "...",
+                "ToDo": "...",
+                "Executing": "..."
+            }
+        },
+        ...
+    ]
+    """
+    with get_local_client(timeout=30) as client:
+        resp = client.get(f"{LOCAL_API_URL}/page/{page_id}")
+        if resp.status_code in (301, 302):
+            resp = client.get(resp.headers.get("location", ""))
+        resp.raise_for_status()
+        data = resp.json()
+
+    body = data.get("body", "") or ""
+    if not body:
+        raise HTTPException(status_code=404, detail="Confluence page has no body content")
+
+    entries = _build_confluence_testplan_entries(page_id)
+    results = [
+        {"region": e["region"], "working_group": e["working_group"], "jqls": e["jqls"]}
+        for e in entries
+    ]
+
+    # Optional filtering
+    if region:
+        region_norm = region.strip().lower()
+        results = [
+            r for r in results
+            if region_norm in r["region"].lower() or region_norm in r["region"].split()[-1].lower()
+        ]
+    if working_group:
+        wg_norm = working_group.strip().lower()
+        results = [r for r in results if wg_norm in r["working_group"].lower()]
+
+    results.sort(key=lambda r: (r["region"], r["working_group"]))
+
+    return results
+
+
 # -- Tool 3: Get failed tests --------------------------------------------------
 
 @app.get("/testplan/{test_plan_key}/failed-tests", operation_id="get_failed_tests",
          summary="Step 3: Get all tests with latestStatus=FAIL from Xray")
 def get_failed_tests(test_plan_key: str):
     all_tests = []
-    with get_local_client(timeout=60) as client:
-        for page in range(1, 20):
-            resp = client.get(
-                f"{XRAY_BASE_URL}/xray/testplan/{test_plan_key}/tests",
-                params={"page": page, "limit": 100}
+    for page in range(1, 20):
+        resp = xray_request(
+            "GET",
+            f"/testplan/{test_plan_key}/tests",
+            params={"page": page, "limit": 100},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = next(
+                (data[k] for k in ("tests","testExecutions","data","results","items")
+                 if isinstance(data.get(k), list)), []
             )
-            resp.raise_for_status()
-            data = resp.json()
-            if isinstance(data, list):
-                items = data
-            elif isinstance(data, dict):
-                items = next(
-                    (data[k] for k in ("tests","testExecutions","data","results","items")
-                     if isinstance(data.get(k), list)), []
-                )
-            else:
-                items = []
-            if not items:
-                break
-            all_tests.extend(items)
-            if len(items) < 100:
-                break
+        else:
+            items = []
+        if not items:
+            break
+        all_tests.extend(items)
+        if len(items) < 100:
+            break
 
     def get_status(item):
         status = item.get("latestStatus") or item.get("status")
@@ -1302,28 +1624,29 @@ def get_failed_tests(test_plan_key: str):
          summary="Step 4: Get all Test Execution keys linked to a Test Plan")
 def get_test_plan_executions(test_plan_key: str):
     all_executions = []
-    with get_local_client(timeout=60) as client:
-        for page in range(1, 20):
-            resp = client.get(
-                f"{XRAY_BASE_URL}/xray/testplan/{test_plan_key}/testexecutions",
-                params={"page": page, "limit": 100}
+    for page in range(1, 20):
+        resp = xray_request(
+            "GET",
+            f"/testplan/{test_plan_key}/testexecutions",
+            params={"page": page, "limit": 100},
+            timeout=60,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        if isinstance(data, list):
+            items = data
+        elif isinstance(data, dict):
+            items = next(
+                (data[k] for k in ("tests","testExecutions","data","results","items")
+                 if isinstance(data.get(k), list)), []
             )
-            resp.raise_for_status()
-            data = resp.json()
-            if isinstance(data, list):
-                items = data
-            elif isinstance(data, dict):
-                items = next(
-                    (data[k] for k in ("tests","testExecutions","data","results","items")
-                     if isinstance(data.get(k), list)), []
-                )
-            else:
-                items = []
-            if not items:
-                break
-            all_executions.extend(items)
-            if len(items) < 100:
-                break
+        else:
+            items = []
+        if not items:
+            break
+        all_executions.extend(items)
+        if len(items) < 100:
+            break
 
     exec_keys = [
         item.get("key") or item.get("testExecKey") or item.get("testExecutionKey")
@@ -1486,45 +1809,44 @@ def analyze_failed_tests_with_kpms(test_plan_key: str):
 
         results = []
         errors = []
-        with get_local_client(timeout=30) as client:
-            for test_key, run_info in run_map.items():
-                run_id = run_info.get("run_id")
-                if not run_id:
-                    errors.append({"test_key": test_key, "error": "No run_id found"})
-                    continue
-                try:
-                    resp = client.get(f"{XRAY_BASE_URL}/xray/testrun/{run_id}")
-                    resp.raise_for_status()
-                    detail = resp.json()
+        for test_key, run_info in run_map.items():
+            run_id = run_info.get("run_id")
+            if not run_id:
+                errors.append({"test_key": test_key, "error": "No run_id found"})
+                continue
+            try:
+                resp = xray_request("GET", f"/testrun/{run_id}", timeout=30)
+                resp.raise_for_status()
+                detail = resp.json()
 
-                    comment = detail.get("comment")
-                    if isinstance(comment, dict):
-                        comment = comment.get("value") or comment.get("text") or ""
-                    comment = comment or ""
+                comment = detail.get("comment")
+                if isinstance(comment, dict):
+                    comment = comment.get("value") or comment.get("text") or ""
+                comment = comment or ""
 
-                    status = detail.get("status")
-                    if isinstance(status, dict):
-                        status = status.get("name") or status.get("value") or status.get("key")
+                status = detail.get("status")
+                if isinstance(status, dict):
+                    status = status.get("name") or status.get("value") or status.get("key")
 
-                    kpm_ids = []
-                    for pattern in [
-                        r"KPM[:\s#-]+(\d+)",
-                        r"KPM Problem\s*-\s*(\d+)",
-                        r"kpmweb[^\s]*id=(\d+)",
-                        r"\bKPM-(\d+)\b",
-                    ]:
-                        kpm_ids.extend(re.findall(pattern, comment, re.IGNORECASE))
+                kpm_ids = []
+                for pattern in [
+                    r"KPM[:\s#-]+(\d+)",
+                    r"KPM Problem\s*-\s*(\d+)",
+                    r"kpmweb[^\s]*id=(\d+)",
+                    r"\bKPM-(\d+)\b",
+                ]:
+                    kpm_ids.extend(re.findall(pattern, comment, re.IGNORECASE))
 
-                    results.append({
-                        "test_key": test_key,
-                        "run_id": run_id,
-                        "test_exec_key": run_info.get("test_exec_key"),
-                        "status": status,
-                        "comment": comment,
-                        "kpm_ids": list(set(kpm_ids)),
-                    })
-                except Exception as e:
-                    errors.append({"test_key": test_key, "run_id": run_id, "error": str(e)})
+                results.append({
+                    "test_key": test_key,
+                    "run_id": run_id,
+                    "test_exec_key": run_info.get("test_exec_key"),
+                    "status": status,
+                    "comment": comment,
+                    "kpm_ids": list(set(kpm_ids)),
+                })
+            except Exception as e:
+                errors.append({"test_key": test_key, "run_id": run_id, "error": str(e)})
 
         kpm_summary = {}
         for r in results:
@@ -1566,60 +1888,61 @@ def get_failed_test_kpm_comments(test_plan_key: str):
         results = []
         errors = []
 
-        with get_local_client(timeout=30) as client:
-            for test_key, info in run_map.items():
-                test_exec_key = info.get("test_exec_key")
-                if not test_exec_key:
-                    errors.append({"test_key": test_key, "error": "Missing test_exec_key"})
-                    continue
+        for test_key, info in run_map.items():
+            test_exec_key = info.get("test_exec_key")
+            if not test_exec_key:
+                errors.append({"test_key": test_key, "error": "Missing test_exec_key"})
+                continue
 
-                try:
-                    resp = client.get(
-                        f"{XRAY_BASE_URL}/xray/testrun",
-                        params={
-                            "testExecIssueKey": test_exec_key,
-                            "testIssueKey": test_key,
-                        },
+            try:
+                resp = xray_request(
+                    "GET",
+                    "/testrun",
+                    params={
+                        "testExecIssueKey": test_exec_key,
+                        "testIssueKey": test_key,
+                    },
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                detail = resp.json()
+
+                status = detail.get("status")
+                if isinstance(status, dict):
+                    status = (
+                        status.get("name")
+                        or status.get("value")
+                        or status.get("key")
                     )
-                    resp.raise_for_status()
-                    detail = resp.json()
 
-                    status = detail.get("status")
-                    if isinstance(status, dict):
-                        status = (
-                            status.get("name")
-                            or status.get("value")
-                            or status.get("key")
-                        )
+                comment = detail.get("comment", "")
+                if isinstance(comment, dict):
+                    comment = (
+                        comment.get("value")
+                        or comment.get("text")
+                        or ""
+                    )
+                comment = str(comment).strip()
 
-                    comment = detail.get("comment", "")
-                    if isinstance(comment, dict):
-                        comment = (
-                            comment.get("value")
-                            or comment.get("text")
-                            or ""
-                        )
-                    comment = str(comment).strip()
+                # Extract all 8-digit KPM ticket numbers
+                kpm_ids = re.findall(r"(?<!\d)(\d{8})(?!\d)", comment)
+                kpm_ids = list(dict.fromkeys(kpm_ids))
 
-                    # Extract all 8-digit KPM ticket numbers
-                    kpm_ids = re.findall(r"(?<!\d)(\d{8})(?!\d)", comment)
-                    kpm_ids = list(dict.fromkeys(kpm_ids))
+                results.append({
+                    "test_key": test_key,
+                    "test_exec_key": test_exec_key,
+                    "status": status,
+                    "comment": comment,
+                    "comment_length": len(comment),
+                    "kpm_ids": kpm_ids,
+                })
 
-                    results.append({
-                        "test_key": test_key,
-                        "test_exec_key": test_exec_key,
-                        "status": status,
-                        "comment": comment,
-                        "comment_length": len(comment),
-                        "kpm_ids": kpm_ids,
-                    })
-
-                except Exception as e:
-                    errors.append({
-                        "test_key": test_key,
-                        "test_exec_key": test_exec_key,
-                        "error": str(e),
-                    })
+            except Exception as e:
+                errors.append({
+                    "test_key": test_key,
+                    "test_exec_key": test_exec_key,
+                    "error": str(e),
+                })
 
         # Build after the loop so it reflects all results
         test_exec_comments = [
@@ -1731,11 +2054,14 @@ def _paginate_parallel(
     reliably indicate the end of the result set.
     """
     all_items: list = []
+    xray_marker = f"{XRAY_BASE_URL}/xray"
+    xray_suffix = url[len(xray_marker):] if url.startswith(xray_marker) else None
     for page_num in range(1, max_pages + 1):
-        resp = client.get(
-            url,
-            params={**base_params, "page": page_num, "limit": 100},
-        )
+        page_params = {**base_params, "page": page_num, "limit": 100}
+        if xray_suffix is not None:
+            resp = xray_request("GET", xray_suffix, params=page_params, timeout=60)
+        else:
+            resp = client.get(url, params=page_params)
         if resp.status_code != 200:
             break
 
@@ -1830,6 +2156,67 @@ def _fetch_issue_summaries(test_keys) -> dict[str, str]:
     return summaries
 
 
+def _fetch_issue_description(test_key: str, client: Optional[httpx.Client] = None) -> str:
+    """Fetch the full Jira issue *description* (requirement text) for test_key.
+
+    This is distinct from the short issue *summary* (title) already fetched by
+    `_fetch_issue_summary`/`_fetch_issue_summaries` — the description holds the
+    full requirement/test body (e.g. "Functional Requirement:", "Additional
+    Requirements:" sections) that the AI summary needs for richer analysis.
+    """
+    owns_client = client is None
+    try:
+        if owns_client:
+            client = get_local_client(timeout=30)
+        resp = client.get(
+            f"{XRAY_BASE_URL}/issue/{test_key}",
+            follow_redirects=True,
+        )
+        if resp.status_code in (301, 302):
+            resp = client.get(resp.headers["location"])
+        if "application/json" not in resp.headers.get("content-type", ""):
+            return ""
+        issue = resp.json()
+        return (
+            issue.get("description")
+            or issue.get("fields", {}).get("description")
+            or ""
+        )
+    except Exception:
+        return ""
+    finally:
+        if owns_client and client is not None:
+            client.close()
+
+
+def _fetch_issue_descriptions(test_keys) -> dict[str, str]:
+    """Fetch full Jira issue descriptions for a batch of test keys in parallel.
+
+    Used by the AI-summary and row-summaries endpoints so the LLM can reason
+    over the actual requirement text (functional/non-functional requirements,
+    additional requirements, etc.) instead of just the short test title.
+    """
+    keys = sorted({str(key).strip() for key in test_keys if str(key).strip()})
+    descriptions: dict[str, str] = {}
+    if not keys:
+        return descriptions
+
+    with get_local_client(timeout=60) as client:
+        with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(keys))) as pool:
+            futures = {
+                pool.submit(_fetch_issue_description, key, client): key
+                for key in keys
+            }
+            for future in as_completed(futures):
+                key = futures[future]
+                try:
+                    descriptions[key] = future.result()
+                except Exception:
+                    descriptions[key] = ""
+
+    return descriptions
+
+
 def _get_fail_runs_for_test_plan(test_plan_key: str) -> list[dict]:
     """
     For a Test Plan:
@@ -1905,31 +2292,32 @@ def _get_fail_runs_for_test(test_key: str) -> list[dict]:
     # -----------------------------
     execution_keys = set()
 
-    with get_local_client(timeout=60) as client:
-        for page in range(1, _MAX_PAGES + 1):
-            resp = client.get(
-                f"{XRAY_BASE_URL}/xray/test/{test_key}/testexecutions",
-                params={"page": page, "limit": 100},
+    for page in range(1, _MAX_PAGES + 1):
+        resp = xray_request(
+            "GET",
+            f"/test/{test_key}/testexecutions",
+            params={"page": page, "limit": 100},
+            timeout=60,
+        )
+
+        if resp.status_code != 200:
+            break
+
+        items = _extract_items(resp.json())
+        if not items:
+            break
+
+        for item in items:
+            key = (
+                item.get("key")
+                or item.get("testExecKey")
+                or item.get("testExecutionKey")
             )
+            if key:
+                execution_keys.add(key)
 
-            if resp.status_code != 200:
-                break
-
-            items = _extract_items(resp.json())
-            if not items:
-                break
-
-            for item in items:
-                key = (
-                    item.get("key")
-                    or item.get("testExecKey")
-                    or item.get("testExecutionKey")
-                )
-                if key:
-                    execution_keys.add(key)
-
-            if len(items) < 100:
-                break
+        if len(items) < 100:
+            break
 
     if not execution_keys:
         return []
@@ -1942,19 +2330,20 @@ def _get_fail_runs_for_test(test_key: str) -> list[dict]:
     run_map = {}
 
     def _fetch_run_for_exec(exec_key: str):
-        with get_local_client(timeout=30) as client:
-            resp = client.get(
-                f"{XRAY_BASE_URL}/xray/testrun",
-                params={
-                    "testExecIssueKey": exec_key,
-                    "testIssueKey": test_key,
-                },
-            )
+        resp = xray_request(
+            "GET",
+            "/testrun",
+            params={
+                "testExecIssueKey": exec_key,
+                "testIssueKey": test_key,
+            },
+            timeout=30,
+        )
 
-            if resp.status_code != 200:
-                return None, exec_key
+        if resp.status_code != 200:
+            return None, exec_key
 
-            return resp.json(), exec_key
+        return resp.json(), exec_key
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
         futures = {
@@ -2094,7 +2483,7 @@ def _build_results(run_map: dict, issue_summaries: dict) -> list[dict]:
                     lambda tk=test_key, ri=run_info: (
                         ri.pop("_run_detail", None)
                         or (
-                            client.get(f"{XRAY_BASE_URL}/xray/testrun/{ri['run_id']}").json()
+                            xray_request("GET", f"/testrun/{ri['run_id']}", timeout=60).json()
                             if ri.get("run_id") and not ri.get("_run_detail")
                             else {}
                         )
@@ -2131,7 +2520,9 @@ def _build_results(run_map: dict, issue_summaries: dict) -> list[dict]:
             executed_on = ""
             if run_detail:
                 raw_ts = (
-                    run_detail.get("finishedOn")
+                    run_detail.get("finish")
+                    or run_detail.get("finishedOn")
+                    or run_detail.get("start")
                     or run_detail.get("startedOn")
                     or run_detail.get("executedOn")
                     or run_detail.get("finishDate")
@@ -2149,7 +2540,7 @@ def _build_results(run_map: dict, issue_summaries: dict) -> list[dict]:
                 "summary": issue_summaries.get(test_key, ""),
                 "test_exec_key": exec_key,
                 "run_id": run_info.get("run_id"),
-                "status": "FAIL",
+                "status": str(run_info.get("status") or "FAIL").upper(),
                 "executed_on": executed_on,
                 "kpm_id": kpm or "No KPM",
                 "comment": comment,
@@ -2449,6 +2840,955 @@ def xray_get_fail_overview(issue_key: str, historical: bool = False):
     }
 
 
+# -- Tool: BLOCKED Overview (compact, UI-ready — mirrors FAIL Overview) --------
+
+@app.get(
+    "/xray/blocked-overview/{issue_key}",
+    operation_id="xray_get_blocked_overview",
+    summary="Compact BLOCKED overview: test key, timestamp, tester, KPM link",
+)
+def xray_get_blocked_overview(issue_key: str):
+    """
+    Return a compact, UI-ready overview of all BLOCKED tests in a Test Plan.
+
+    Mirrors /xray/fail-overview/{issue_key} exactly (same row shape) so the
+    dashboard can render it with the identical table code — the only
+    difference is it filters for BLOCKED instead of FAIL.
+    """
+    start_time = time.perf_counter()
+
+    with get_local_client(timeout=30) as client:
+        resp = client.get(f"{XRAY_BASE_URL}/issue/{issue_key}")
+        if resp.status_code == 404:
+            raise HTTPException(status_code=404, detail=f"Issue {issue_key} not found.")
+        resp.raise_for_status()
+        issue_data = resp.json()
+
+    raw_issue_type = (
+        issue_data.get("issuetype")
+        or (issue_data.get("fields") or {}).get("issuetype")
+        or issue_data.get("issueType")
+        or issue_data.get("type")
+        or ""
+    )
+    if isinstance(raw_issue_type, dict):
+        raw_issue_type = raw_issue_type.get("name") or raw_issue_type.get("value") or ""
+    issue_type = str(raw_issue_type).strip().lower()
+
+    if issue_type != "test plan":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Issue {issue_key} is of type '{issue_type}'. Only 'Test Plan' is supported.",
+        )
+
+    plan_summary = (
+        issue_data.get("summary")
+        or (issue_data.get("fields") or {}).get("summary", "")
+        or ""
+    )
+
+    blocked_results = _get_runs_by_status_for_test_plan(issue_key, "BLOCKED")
+
+    rows = []
+    for r in blocked_results:
+        kpm_id   = r.get("kpm_id") or "No KPM"
+        test_key = r.get("test_key") or ""
+        exec_key = r.get("test_exec_key") or ""
+        assignee = r.get("assignee") or {}
+        rows.append({
+            "test_key":      test_key,
+            "test_url":      f"{_JIRA_BROWSE_URL}/{test_key}" if test_key else "",
+            "summary":       r.get("summary") or "",
+            "executed_on":   r.get("executed_on") or "",
+            "tester_name":   assignee.get("displayName") or assignee.get("name") or "",
+            "tester_email":  assignee.get("emailAddress") or "",
+            "test_exec_key": exec_key,
+            "test_exec_url": f"{_JIRA_BROWSE_URL}/{exec_key}" if exec_key else "",
+            "kpm_id":        kpm_id,
+            "kpm_url":       f"{_KPM_TICKET_URL}{kpm_id}" if kpm_id != "No KPM" else "",
+            "comment":       r.get("comment") or "",
+        })
+
+    kpm_count = sum(1 for r in rows if r["kpm_id"] != "No KPM")
+    end_time  = time.perf_counter()
+
+    return {
+        "issue_key":              issue_key,
+        "summary":                plan_summary,
+        "mode":                   "latest",
+        "total_blocked":          len(rows),
+        "with_kpm":               kpm_count,
+        "without_kpm":            len(rows) - kpm_count,
+        "rows":                   rows,
+        "execution_time_seconds": int(round(end_time - start_time)),
+    }
+
+
+# -- Tool: FAIL results filtered by Priority, for a Region + Working Group ----
+
+def _fetch_issue_priority(test_key: str, client: httpx.Client) -> str:
+    """Fetch a single Jira issue's priority name (e.g. 'High', 'Medium')."""
+    try:
+        resp = client.get(f"{XRAY_BASE_URL}/issue/{test_key}", follow_redirects=True)
+        if resp.status_code in (301, 302):
+            resp = client.get(resp.headers["location"])
+        if "application/json" not in resp.headers.get("content-type", ""):
+            return ""
+        issue = resp.json()
+        priority = issue.get("priority") or (issue.get("fields") or {}).get("priority")
+        if isinstance(priority, dict):
+            return priority.get("name") or priority.get("value") or ""
+        return str(priority or "")
+    except Exception:
+        return ""
+
+
+@app.get(
+    "/test-results/failures/by-region-working-group",
+    operation_id="get_failures_by_region_working_group",
+    summary="FAIL test results filtered by priority for a Region + Working Group",
+)
+def get_failures_by_region_working_group(
+    region: str = Query(..., description="Region name or synonym (e.g. 'testing ece', 'japan')"),
+    working_group: str = Query(..., description="Working Group name or synonym (e.g. 'core hmi', 'navigation')"),
+    priority: Optional[str] = Query(default=None, description="Priority to filter for (e.g. 'High'). Omit to get all priorities grouped as low/medium/high/other."),
+    historical: bool = Query(default=False, description="Include tests that were rerun/reset after FAIL"),
+):
+    """
+    Resolve the Test Plan for the given Region + Working Group via Confluence,
+    fetch its FAIL results, then:
+      - If *priority* is provided, filter to only tests whose Jira priority
+        matches it (case-insensitive).
+      - If *priority* is omitted, return ALL FAIL results grouped by priority
+        bucket: low, medium, high, other.
+
+    Equivalent to the JQL intent:
+        priority = <priority> AND testRunStatus ~ "fail"
+    scoped to the Test Plan for the given region/working group.
+    """
+    canonical_wg = _resolve_filter(working_group, _CANONICAL_WGS)
+    canonical_region = _resolve_filter(region, _CANONICAL_REGIONS)
+
+    unresolved = []
+    if not canonical_wg:
+        unresolved.append(f"working_group='{working_group}'")
+    if not canonical_region:
+        unresolved.append(f"region='{region}'")
+    if unresolved:
+        raise HTTPException(
+            status_code=400,
+            detail=(
+                f"Could not resolve {', '.join(unresolved)} to a known value. "
+                f"Valid Working Groups: {sorted(_CANONICAL_WGS)}. "
+                f"Valid Regions: {sorted(_CANONICAL_REGIONS)}."
+            ),
+        )
+
+    filters = {
+        "location": canonical_region,
+        "working_group": canonical_wg,
+        "_return_all": True,
+    }
+    seen_keys: set = set()
+    test_plans: list = []
+    for _pid in [CONFLUENCE_PAGE_ID, "2381910576"]:
+        for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            key = item.get("test_plan_key")
+            if key and key not in seen_keys:
+                seen_keys.add(key)
+                test_plans.append(key)
+
+    if not test_plans:
+        empty = {
+            "region": canonical_region,
+            "working_group": canonical_wg,
+            "priority": priority,
+            "test_plans_checked": [],
+            "total_fail_all_priorities": 0,
+            "message": "No test plan found for the given region/working group.",
+        }
+        if priority:
+            empty["total_matching"] = 0
+            empty["results"] = []
+        else:
+            empty["grouped"] = {
+                bucket: {"count": 0, "results": []}
+                for bucket in ("high", "medium", "low", "other")
+            }
+        return empty
+
+    # Gather FAIL rows across all matching test plans
+    all_fail_rows: list[dict] = []
+    for tp_key in test_plans:
+        fail_results = (
+            _get_all_fail_runs_historical(tp_key)
+            if historical
+            else _get_fail_runs_for_test_plan(tp_key)
+        )
+        for r in fail_results:
+            r["_test_plan_key"] = tp_key
+        all_fail_rows.extend(fail_results)
+
+    if not all_fail_rows:
+        empty = {
+            "region": canonical_region,
+            "working_group": canonical_wg,
+            "priority": priority,
+            "test_plans_checked": test_plans,
+            "total_fail_all_priorities": 0,
+            "message": "No FAIL results found for the resolved test plan(s).",
+        }
+        if priority:
+            empty["total_matching"] = 0
+            empty["results"] = []
+        else:
+            empty["grouped"] = {
+                bucket: {"count": 0, "results": []}
+                for bucket in ("high", "medium", "low", "other")
+            }
+        return empty
+
+    # Fetch priority for each unique test key in parallel
+    unique_test_keys = {r.get("test_key") for r in all_fail_rows if r.get("test_key")}
+    priorities: dict[str, str] = {}
+    with get_local_client(timeout=60) as client:
+        with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+            futures = {
+                pool.submit(_fetch_issue_priority, key, client): key
+                for key in unique_test_keys
+            }
+            for fut in as_completed(futures):
+                key = futures[fut]
+                try:
+                    priorities[key] = fut.result()
+                except Exception:
+                    priorities[key] = ""
+
+    def _priority_bucket(name: str) -> str:
+        n = (name or "").strip().lower()
+        if n in ("high", "highest", "critical", "blocker"):
+            return "high"
+        if n in ("medium", "normal", "major"):
+            return "medium"
+        if n in ("low", "lowest", "minor", "trivial"):
+            return "low"
+        return "other"
+
+    def _to_row(r: dict) -> dict:
+        test_key = r.get("test_key")
+        test_priority = priorities.get(test_key, "")
+        assignee = r.get("assignee") or {}
+        return {
+            "test_key": test_key,
+            "test_url": f"{_JIRA_BROWSE_URL}/{test_key}" if test_key else "",
+            "priority": test_priority,
+            "summary": r.get("summary") or "",
+            "test_plan_key": r.get("_test_plan_key"),
+            "test_exec_key": r.get("test_exec_key") or "",
+            "executed_on": r.get("executed_on") or "",
+            "tester_name": assignee.get("displayName") or assignee.get("name") or "",
+            "kpm_id": r.get("kpm_id") or "No KPM",
+            "comment": r.get("comment") or "",
+        }
+
+    # No priority filter given -> return everything grouped by bucket
+    if not priority:
+        buckets: dict[str, list] = {"high": [], "medium": [], "low": [], "other": []}
+        for r in all_fail_rows:
+            row = _to_row(r)
+            buckets[_priority_bucket(row["priority"])].append(row)
+
+        grouped: dict[str, dict] = {}
+        for bucket_name, bucket_rows in buckets.items():
+            bucket_rows.sort(key=lambda x: x["test_key"])
+            grouped[bucket_name] = {
+                "count": len(bucket_rows),
+                "results": bucket_rows,
+            }
+
+        return {
+            "region": canonical_region,
+            "working_group": canonical_wg,
+            "priority": None,
+            "test_plans_checked": test_plans,
+            "total_fail_all_priorities": len(all_fail_rows),
+            "grouped": grouped,
+        }
+
+    # Priority filter given -> only matching rows
+    priority_lower = priority.strip().lower()
+    matching = [
+        _to_row(r)
+        for r in all_fail_rows
+        if priorities.get(r.get("test_key"), "").strip().lower() == priority_lower
+    ]
+    matching.sort(key=lambda x: x["test_key"])
+
+    return {
+        "region": canonical_region,
+        "working_group": canonical_wg,
+        "priority": priority,
+        "test_plans_checked": test_plans,
+        "total_fail_all_priorities": len(all_fail_rows),
+        "total_matching": len(matching),
+        "results": matching,
+    }
+
+
+def _build_fail_all_combined_jql(test_plans: list[str]) -> str:
+    """
+    Build the informational combined JQL for ``get_fail_all``.
+
+    Xray's ``testRunStatus`` values are per-Test-Plan (verified working form:
+    ``"{TEST_PLAN_KEY}- fail"``), so each Test Plan needs its own
+    ``(testPlanTests(KEY) AND testRunStatus = "KEY- fail")`` clause, all OR'd
+    together — a single ``testRunStatus = "FAIL"`` literal shared across
+    Test Plans does not match this system.
+    """
+    if not test_plans:
+        return ""
+    return " OR ".join(
+        f'(testPlanTests({k}) AND testRunStatus = "{k}- fail")' for k in test_plans
+    )
+
+
+@app.get(
+    "/test-results/failures/fail-all",
+    operation_id="get_fail_all",
+    summary="All FAIL results for every Test Plan under a Region OR a Working Group",
+    tags=["prod_working"],
+)
+def get_fail_all(
+    region: Optional[str] = Query(default=None, description="Region name or synonym (e.g. 'testing ece', 'japan'). Provide this OR working_group."),
+    working_group: Optional[str] = Query(default=None, description="Working Group name or synonym (e.g. 'navigation', 'core hmi'). Provide this OR region."),
+    historical: bool = Query(default=False, description="Include tests that were rerun/reset after FAIL"),
+):
+    """
+    Resolve every Test Plan key that belongs to the given Region OR Working
+    Group (via Confluence — same resolution used by ``expand_testplans``),
+    then fetch and merge FAIL results across ALL of them.
+
+    Conceptually equivalent to the JQL:
+        (testPlanTests(PLAN_A) AND testRunStatus = "PLAN_A- fail")
+        OR (testPlanTests(PLAN_B) AND testRunStatus = "PLAN_B- fail")
+        OR ...
+    scoped to whichever Test Plans belong to the requested region/working
+    group. Xray's ``testRunStatus`` values are per-Test-Plan (verified
+    working form: ``"{TEST_PLAN_KEY}- fail"``, NOT a plain ``"FAIL"``
+    literal), so each OR'd clause must carry its own Test Plan's key in the
+    status string. The literal combined JQL is returned in the response for
+    reference; the actual FAIL data is still collected per-Test-Plan via the
+    existing Xray testrun scan (same helper used by
+    ``get_failures_by_region_working_group``), since the local Xray proxy
+    does not expose a JQL-search endpoint for this combined query — that
+    helper already filters on the equivalent per-Test-Plan FAIL status via
+    the ``latestStatus``/``status`` fields, so no data-fetching change is
+    needed, only the informational JQL string below.
+    """
+    _start_time = time.time()
+
+    if not region and not working_group:
+        raise HTTPException(status_code=400, detail="Provide either 'region' or 'working_group'.")
+    if region and working_group:
+        raise HTTPException(status_code=400, detail="Provide only one of 'region' or 'working_group', not both.")
+
+    if region:
+        mode = "region"
+        canonical = _resolve_filter(region, _CANONICAL_REGIONS)
+        if not canonical:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not resolve region='{region}'. Valid Regions: {sorted(_CANONICAL_REGIONS)}.",
+            )
+        filters = {"location": canonical, "_return_all": True}
+    else:
+        mode = "working_group"
+        canonical = _resolve_filter(working_group, _CANONICAL_WGS)
+        if not canonical:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not resolve working_group='{working_group}'. Valid Working Groups: {sorted(_CANONICAL_WGS)}.",
+            )
+        filters = {"working_group": canonical, "_return_all": True}
+
+    # Resolve all matching Test Plan keys across both known Confluence pages,
+    # skipping unclassified entries (same rule as expand_testplans). Also
+    # remember each key's working_group (when scoped by region) or region
+    # (when scoped by working_group) so results can be labeled per Test Plan.
+    seen_keys: set = set()
+    test_plans: list = []
+    key_working_group: dict[str, str] = {}
+    for _pid in [CONFLUENCE_PAGE_ID, "2381910576"]:
+        for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            key = item.get("test_plan_key")
+            wg = item.get("working_group", "") or ""
+            reg = item.get("region", "") or ""
+            if mode == "region" and not wg:
+                continue
+            if mode == "working_group" and not reg:
+                continue
+            if key and key not in seen_keys:
+                seen_keys.add(key)
+                test_plans.append(key)
+                key_working_group[key] = wg if mode == "region" else reg
+
+    combined_jql = _build_fail_all_combined_jql(test_plans)
+
+    if not test_plans:
+        return {
+            "mode": mode,
+            "region": canonical if mode == "region" else None,
+            "working_group": canonical if mode == "working_group" else None,
+            "test_plans_checked": [],
+            "combined_jql": combined_jql,
+            "total_fail": 0,
+            "results": [],
+            "message": "No test plans found for the given region/working group.",
+            "elapsed_seconds": round(time.time() - _start_time, 2),
+        }
+
+    # Gather FAIL rows across all matching test plans (same helper used by
+    # get_failures_by_region_working_group), fetched concurrently since each
+    # Test Plan scan is an independent set of I/O calls to the Xray proxy.
+    def _scan_test_plan(tp_key: str) -> list[dict]:
+        fail_results = (
+            _get_all_fail_runs_historical(tp_key)
+            if historical
+            else _get_fail_runs_for_test_plan(tp_key)
+        )
+        for r in fail_results:
+            r["_test_plan_key"] = tp_key
+        return fail_results
+
+    all_fail_rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(test_plans))) as pool:
+        futures = {pool.submit(_scan_test_plan, tp_key): tp_key for tp_key in test_plans}
+        for fut in as_completed(futures):
+            tp_key = futures[fut]
+            try:
+                all_fail_rows.extend(fut.result())
+            except Exception:
+                logger.warning(f"FAIL scan failed for test plan {tp_key}")
+
+    results = []
+    for r in all_fail_rows:
+        test_key = r.get("test_key")
+        assignee = r.get("assignee") or {}
+        tp_key = r.get("_test_plan_key")
+        results.append({
+            "test_key": test_key,
+            "test_url": f"{_JIRA_BROWSE_URL}/{test_key}" if test_key else "",
+            "summary": r.get("summary") or "",
+            "test_plan_key": tp_key,
+            "working_group": key_working_group.get(tp_key, ""),
+            "test_exec_key": r.get("test_exec_key") or "",
+            "executed_on": r.get("executed_on") or "",
+            "tester_name": assignee.get("displayName") or assignee.get("name") or "",
+            "kpm_id": r.get("kpm_id") or "No KPM",
+            "comment": r.get("comment") or "",
+        })
+    results.sort(key=lambda x: x["test_key"])
+
+    return {
+        "mode": mode,
+        "region": canonical if mode == "region" else None,
+        "working_group": canonical if mode == "working_group" else None,
+        "test_plans_checked": test_plans,
+        "combined_jql": combined_jql,
+        "total_fail": len(results),
+        "results": results,
+        "elapsed_seconds": round(time.time() - _start_time, 2),
+    }
+
+
+def _build_blocked_all_combined_jql(test_plans: list[str]) -> str:
+    """
+    Build the informational combined JQL for ``get_blocked_all``, mirroring
+    ``_build_fail_all_combined_jql`` but for the BLOCKED status.
+    """
+    if not test_plans:
+        return ""
+    return " OR ".join(
+        f'(testPlanTests({k}) AND testRunStatus = "{k}- blocked")' for k in test_plans
+    )
+
+
+@app.get(
+    "/test-results/blocked/blocked-all",
+    operation_id="get_blocked_all",
+    summary="All BLOCKED results for every Test Plan under a Region OR a Working Group",
+    tags=["prod_working"],
+)
+def get_blocked_all(
+    region: Optional[str] = Query(default=None, description="Region name or synonym (e.g. 'testing ece', 'japan'). Provide this OR working_group."),
+    working_group: Optional[str] = Query(default=None, description="Working Group name or synonym (e.g. 'navigation', 'core hmi'). Provide this OR region."),
+):
+    """
+    Resolve every Test Plan key that belongs to the given Region OR Working
+    Group (via Confluence — same resolution used by ``get_fail_all``), then
+    fetch and merge BLOCKED results across ALL of them.
+    """
+    _start_time = time.time()
+
+    if not region and not working_group:
+        raise HTTPException(status_code=400, detail="Provide either 'region' or 'working_group'.")
+    if region and working_group:
+        raise HTTPException(status_code=400, detail="Provide only one of 'region' or 'working_group', not both.")
+
+    if region:
+        mode = "region"
+        canonical = _resolve_filter(region, _CANONICAL_REGIONS)
+        if not canonical:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not resolve region='{region}'. Valid Regions: {sorted(_CANONICAL_REGIONS)}.",
+            )
+        filters = {"location": canonical, "_return_all": True}
+    else:
+        mode = "working_group"
+        canonical = _resolve_filter(working_group, _CANONICAL_WGS)
+        if not canonical:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Could not resolve working_group='{working_group}'. Valid Working Groups: {sorted(_CANONICAL_WGS)}.",
+            )
+        filters = {"working_group": canonical, "_return_all": True}
+
+    seen_keys: set = set()
+    test_plans: list = []
+    key_working_group: dict[str, str] = {}
+    for _pid in [CONFLUENCE_PAGE_ID, "2381910576"]:
+        for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            key = item.get("test_plan_key")
+            wg = item.get("working_group", "") or ""
+            reg = item.get("region", "") or ""
+            if mode == "region" and not wg:
+                continue
+            if mode == "working_group" and not reg:
+                continue
+            if key and key not in seen_keys:
+                seen_keys.add(key)
+                test_plans.append(key)
+                key_working_group[key] = wg if mode == "region" else reg
+
+    combined_jql = _build_blocked_all_combined_jql(test_plans)
+
+    if not test_plans:
+        return {
+            "mode": mode,
+            "region": canonical if mode == "region" else None,
+            "working_group": canonical if mode == "working_group" else None,
+            "test_plans_checked": [],
+            "combined_jql": combined_jql,
+            "total_blocked": 0,
+            "results": [],
+            "message": "No test plans found for the given region/working group.",
+            "elapsed_seconds": round(time.time() - _start_time, 2),
+        }
+
+    def _scan_test_plan(tp_key: str) -> list[dict]:
+        blocked_results = _get_runs_by_status_for_test_plan(tp_key, "BLOCKED")
+        for r in blocked_results:
+            r["_test_plan_key"] = tp_key
+        return blocked_results
+
+    all_blocked_rows: list[dict] = []
+    with ThreadPoolExecutor(max_workers=min(_MAX_WORKERS, len(test_plans))) as pool:
+        futures = {pool.submit(_scan_test_plan, tp_key): tp_key for tp_key in test_plans}
+        for fut in as_completed(futures):
+            tp_key = futures[fut]
+            try:
+                all_blocked_rows.extend(fut.result())
+            except Exception:
+                logger.warning(f"BLOCKED scan failed for test plan {tp_key}")
+
+    results = []
+    for r in all_blocked_rows:
+        test_key = r.get("test_key")
+        assignee = r.get("assignee") or {}
+        tp_key = r.get("_test_plan_key")
+        results.append({
+            "test_key": test_key,
+            "test_url": f"{_JIRA_BROWSE_URL}/{test_key}" if test_key else "",
+            "summary": r.get("summary") or "",
+            "test_plan_key": tp_key,
+            "working_group": key_working_group.get(tp_key, ""),
+            "test_exec_key": r.get("test_exec_key") or "",
+            "executed_on": r.get("executed_on") or "",
+            "tester_name": assignee.get("displayName") or assignee.get("name") or "",
+            "kpm_id": r.get("kpm_id") or "No KPM",
+            "comment": r.get("comment") or "",
+        })
+    results.sort(key=lambda x: x["test_key"])
+
+    return {
+        "mode": mode,
+        "region": canonical if mode == "region" else None,
+        "working_group": canonical if mode == "working_group" else None,
+        "test_plans_checked": test_plans,
+        "combined_jql": combined_jql,
+        "total_blocked": len(results),
+        "results": results,
+        "elapsed_seconds": round(time.time() - _start_time, 2),
+    }
+
+
+# -- Tool: AI summary for FAIL Overview ---------------------------------------
+
+_LLM_BASE_URL  = "https://ollama-api.tech.emea.porsche.biz/v1"
+# Certificate ships with the repo (certs/) so the AI-summary endpoints work
+# out of the box for anyone who clones this repo — no machine-specific path.
+# LLM_CERT_PATH env var can still override this for custom setups.
+_LLM_CERT      = os.getenv(
+    "LLM_CERT_PATH",
+    os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs", "ollama-api-fullchain.pem"),
+)
+_LLM_MODEL     = "gpt-oss:20b"
+
+
+@app.post(
+    "/xray/fail-overview/{issue_key}/ai-summary",
+    operation_id="xray_fail_overview_ai_summary",
+    summary="Generate an AI summary for a FAIL overview result set",
+)
+def xray_fail_overview_ai_summary(issue_key: str, body: dict = Body(default={})):
+    """
+    Takes the rows from a FAIL overview (passed in request body as 'rows')
+    and asks the internal Porsche LLM to generate a concise management summary.
+
+    Body: { "rows": [...], "plan_summary": "...", "mode": "latest|historical" }
+    """
+    import httpx as _httpx
+
+    rows         = body.get("rows") or []
+    plan_summary = body.get("plan_summary") or issue_key
+    mode         = body.get("mode") or "latest"
+
+    if not rows:
+        return {"summary": "No FAIL data provided to summarise."}
+
+    total      = len(rows)
+    with_kpm   = sum(1 for r in rows if r.get("kpm_id") and r.get("kpm_id") != "No KPM")
+    without_kpm = total - with_kpm
+
+    # Pull the full Jira requirement description for each test so the LLM
+    # reasons over the actual functional/non-functional requirement text,
+    # not just the short test title.
+    descriptions = _fetch_issue_descriptions([r.get("test_key") for r in rows[:40]])
+
+    # Build a compact bullet list (keep under token budget)
+    bullets = []
+    for r in rows[:40]:
+        kpm  = r.get("kpm_id") or "No KPM"
+        tc   = r.get("test_key") or ""
+        ts   = (r.get("executed_on") or "")[:10]  # date only
+        tester = r.get("tester_name") or "unknown"
+        desc = (descriptions.get(tc) or "").strip().replace("\r\n", " ").replace("\n", " ")
+        if len(desc) > 300:
+            desc = desc[:300] + "…"
+        bullets.append(f"- {tc}: KPM={kpm}, tester={tester}, date={ts}" + (f"\n  Requirement: {desc}" if desc else ""))
+    bullet_text = "\n".join(bullets)
+    if total > 40:
+        bullet_text += f"\n... and {total - 40} more."
+
+    prompt = (
+        f"You are a test quality analyst at Porsche Engineering. "
+        f"Summarise the following FAIL report for test plan '{plan_summary}' ({mode} mode) "
+        f"in 4-6 bullet points for a manager. Use the Requirement text for each test to explain "
+        f"what functionality failed, not just the test key. Focus on: total failures, KPM coverage, "
+        f"testers involved, and any patterns. Be concise and professional.\n\n"
+        f"Stats: {total} FAILs total, {with_kpm} with KPM, {without_kpm} without KPM.\n\n"
+        f"Details:\n{bullet_text}"
+    )
+
+    try:
+        import ssl as _ssl
+        cert = _LLM_CERT if os.path.exists(_LLM_CERT) else True
+        if isinstance(cert, str):
+            _ctx = _ssl.create_default_context(cafile=cert)
+        else:
+            _ctx = True
+        _transport = _httpx.HTTPTransport(verify=_ctx)
+        with _httpx.Client(transport=_transport, timeout=120) as llm_client:
+            resp = llm_client.post(
+                f"{_LLM_BASE_URL}/chat/completions",
+                json={
+                    "model": _LLM_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 2000,
+                },
+                headers={"Authorization": "Bearer ollama"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            message = data["choices"][0]["message"]
+            # gpt-oss:20b is a reasoning model: it can spend the whole
+            # max_tokens budget on the hidden "reasoning" field and leave
+            # "content" empty on longer/complex prompts. Fall back to the
+            # reasoning text so the caller never gets a blank summary.
+            text = (message.get("content") or "").strip()
+            if not text:
+                text = (message.get("reasoning") or "").strip()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    return {"issue_key": issue_key, "model": _LLM_MODEL, "summary": text}
+
+
+@app.post(
+    "/xray/blocked-overview/{issue_key}/ai-summary",
+    operation_id="xray_blocked_overview_ai_summary",
+    summary="Generate an AI summary for a BLOCKED overview result set",
+)
+def xray_blocked_overview_ai_summary(issue_key: str, body: dict = Body(default={})):
+    """
+    Takes the rows from a BLOCKED overview (passed in request body as 'rows')
+    and asks the internal Porsche LLM to generate a concise management summary.
+
+    Body: { "rows": [...], "plan_summary": "..." }
+    """
+    import httpx as _httpx
+
+    rows         = body.get("rows") or []
+    plan_summary = body.get("plan_summary") or issue_key
+
+    if not rows:
+        return {"summary": "No BLOCKED data provided to summarise."}
+
+    total       = len(rows)
+    with_kpm    = sum(1 for r in rows if r.get("kpm_id") and r.get("kpm_id") != "No KPM")
+    without_kpm = total - with_kpm
+
+    # Pull the full Jira requirement description for each test so the LLM
+    # reasons over the actual functional/non-functional requirement text,
+    # not just the short test title.
+    descriptions = _fetch_issue_descriptions([r.get("test_key") for r in rows[:40]])
+
+    bullets = []
+    for r in rows[:40]:
+        kpm    = r.get("kpm_id") or "No KPM"
+        tc     = r.get("test_key") or ""
+        ts     = (r.get("executed_on") or "")[:10]
+        tester = r.get("tester_name") or "unknown"
+        desc = (descriptions.get(tc) or "").strip().replace("\r\n", " ").replace("\n", " ")
+        if len(desc) > 300:
+            desc = desc[:300] + "…"
+        bullets.append(f"- {tc}: KPM={kpm}, tester={tester}, date={ts}" + (f"\n  Requirement: {desc}" if desc else ""))
+    bullet_text = "\n".join(bullets)
+    if total > 40:
+        bullet_text += f"\n... and {total - 40} more."
+
+    prompt = (
+        f"You are a test quality analyst at Porsche Engineering. "
+        f"Summarise the following BLOCKED report for test plan '{plan_summary}' "
+        f"in 4-6 bullet points for a manager. Use the Requirement text for each test to explain "
+        f"what functionality is blocked, not just the test key. Focus on: total blocked tests, KPM coverage, "
+        f"testers involved, and any patterns. Be concise and professional.\n\n"
+        f"Stats: {total} BLOCKED total, {with_kpm} with KPM, {without_kpm} without KPM.\n\n"
+        f"Details:\n{bullet_text}"
+    )
+
+    try:
+        import ssl as _ssl
+        cert = _LLM_CERT if os.path.exists(_LLM_CERT) else True
+        if isinstance(cert, str):
+            _ctx = _ssl.create_default_context(cafile=cert)
+        else:
+            _ctx = True
+        _transport = _httpx.HTTPTransport(verify=_ctx)
+        with _httpx.Client(transport=_transport, timeout=120) as llm_client:
+            resp = llm_client.post(
+                f"{_LLM_BASE_URL}/chat/completions",
+                json={
+                    "model": _LLM_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 0.3,
+                    "max_tokens": 2000,
+                },
+                headers={"Authorization": "Bearer ollama"},
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            message = data["choices"][0]["message"]
+            # gpt-oss:20b is a reasoning model: it can spend the whole
+            # max_tokens budget on the hidden "reasoning" field and leave
+            # "content" empty on longer/complex prompts. Fall back to the
+            # reasoning text so the caller never gets a blank summary.
+            text = (message.get("content") or "").strip()
+            if not text:
+                text = (message.get("reasoning") or "").strip()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    return {"issue_key": issue_key, "model": _LLM_MODEL, "summary": text}
+
+
+def _call_llm(prompt: str, max_tokens: int = 300, temperature: float = 0.3) -> str:
+    """Call the internal Porsche LLM (bypasses corporate proxy) and return text."""
+    import httpx as _httpx
+    import ssl as _ssl
+
+    cert = _LLM_CERT if os.path.exists(_LLM_CERT) else True
+    _ctx = _ssl.create_default_context(cafile=cert) if isinstance(cert, str) else True
+    _transport = _httpx.HTTPTransport(verify=_ctx)
+    with _httpx.Client(transport=_transport, timeout=180) as llm_client:
+        resp = llm_client.post(
+            f"{_LLM_BASE_URL}/chat/completions",
+            json={
+                "model": _LLM_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            headers={"Authorization": "Bearer ollama"},
+        )
+        resp.raise_for_status()
+        message = resp.json()["choices"][0]["message"]
+        # gpt-oss:20b (reasoning model) can consume the whole token budget on
+        # hidden reasoning and leave "content" empty — fall back to reasoning
+        # text so callers never get a blank result.
+        text = (message.get("content") or "").strip()
+        if not text:
+            text = (message.get("reasoning") or "").strip()
+        return text
+
+
+@app.post(
+    "/xray/fail-overview/{issue_key}/row-summaries",
+    operation_id="xray_fail_overview_row_summaries",
+    summary="Generate a short AI summary for each failing test row",
+)
+def xray_fail_overview_row_summaries(issue_key: str, body: dict = Body(default={})):
+    """
+    Takes the rows from a FAIL overview and returns a 2-3 sentence AI summary
+    per test key, based on that row's description (summary) and comment.
+
+    Body: { "rows": [ { "test_key", "summary", "comment" }, ... ] }
+    Returns: { "issue_key": ..., "model": ..., "summaries": { test_key: text } }
+    """
+    import json as _json
+    import re as _re
+
+    rows = body.get("rows") or []
+    if not rows:
+        return {"issue_key": issue_key, "model": _LLM_MODEL, "summaries": {}}
+
+    # Pull the full Jira requirement description (functional/non-functional
+    # requirements) for each test, in addition to the short row summary.
+    descriptions = _fetch_issue_descriptions([r.get("test_key") for r in rows])
+
+    # Build a compact numbered list for the LLM
+    items = []
+    for r in rows:
+        tc      = r.get("test_key") or ""
+        title   = (r.get("summary") or r.get("description") or "").strip()
+        req     = (descriptions.get(tc) or "").strip().replace("\r\n", " ").replace("\n", " ")
+        if len(req) > 500:
+            req = req[:500] + "…"
+        comment = (r.get("comment") or "").strip()
+        items.append({"test_key": tc, "description": title, "requirement": req, "comment": comment})
+
+    prompt = (
+        "You are a test quality analyst at Porsche Engineering. "
+        "For EACH failing test below, write a concise 2-3 sentence summary explaining "
+        "what the test covers and why it likely failed, based on its title, requirement text, and comment. "
+        "Be factual and professional. Do NOT invent details not present in the data.\n\n"
+        "Return ONLY a valid JSON object mapping each test_key to its summary string, "
+        'like {"MLBEVO-123": "summary text", ...}. No markdown, no extra text.\n\n'
+        f"Tests:\n{_json.dumps(items, ensure_ascii=False)}"
+    )
+
+    try:
+        text = _call_llm(prompt, max_tokens=min(200 * len(items) + 200, 4000))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    # Parse the JSON object out of the response (model may wrap it)
+    summaries: dict = {}
+    try:
+        summaries = _json.loads(text)
+    except Exception:
+        m = _re.search(r"\{.*\}", text, _re.DOTALL)
+        if m:
+            try:
+                summaries = _json.loads(m.group(0))
+            except Exception:
+                summaries = {}
+
+    # Ensure every requested key has an entry
+    for it in items:
+        summaries.setdefault(it["test_key"], "")
+
+    return {"issue_key": issue_key, "model": _LLM_MODEL, "summaries": summaries}
+
+
+@app.post(
+    "/xray/blocked-overview/{issue_key}/row-summaries",
+    operation_id="xray_blocked_overview_row_summaries",
+    summary="Generate a short AI summary for each blocked test row",
+)
+def xray_blocked_overview_row_summaries(issue_key: str, body: dict = Body(default={})):
+    """
+    Takes the rows from a BLOCKED overview and returns a 2-3 sentence AI summary
+    per test key, based on that row's description (summary) and comment.
+
+    Body: { "rows": [ { "test_key", "summary", "comment" }, ... ] }
+    Returns: { "issue_key": ..., "model": ..., "summaries": { test_key: text } }
+    """
+    import json as _json
+    import re as _re
+
+    rows = body.get("rows") or []
+    if not rows:
+        return {"issue_key": issue_key, "model": _LLM_MODEL, "summaries": {}}
+
+    # Pull the full Jira requirement description (functional/non-functional
+    # requirements) for each test, in addition to the short row summary.
+    descriptions = _fetch_issue_descriptions([r.get("test_key") for r in rows])
+
+    items = []
+    for r in rows:
+        tc      = r.get("test_key") or ""
+        title   = (r.get("summary") or r.get("description") or "").strip()
+        req     = (descriptions.get(tc) or "").strip().replace("\r\n", " ").replace("\n", " ")
+        if len(req) > 500:
+            req = req[:500] + "…"
+        comment = (r.get("comment") or "").strip()
+        items.append({"test_key": tc, "description": title, "requirement": req, "comment": comment})
+
+    prompt = (
+        "You are a test quality analyst at Porsche Engineering. "
+        "For EACH blocked test below, write a concise 2-3 sentence summary explaining "
+        "what the test covers and why it is likely blocked, based on its title, requirement text, and comment. "
+        "Be factual and professional. Do NOT invent details not present in the data.\n\n"
+        "Return ONLY a valid JSON object mapping each test_key to its summary string, "
+        'like {"MLBEVO-123": "summary text", ...}. No markdown, no extra text.\n\n'
+        f"Tests:\n{_json.dumps(items, ensure_ascii=False)}"
+    )
+
+    try:
+        text = _call_llm(prompt, max_tokens=min(200 * len(items) + 200, 4000))
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    summaries: dict = {}
+    try:
+        summaries = _json.loads(text)
+    except Exception:
+        m = _re.search(r"\{.*\}", text, _re.DOTALL)
+        if m:
+            try:
+                summaries = _json.loads(m.group(0))
+            except Exception:
+                summaries = {}
+
+    for it in items:
+        summaries.setdefault(it["test_key"], "")
+
+    return {"issue_key": issue_key, "model": _LLM_MODEL, "summaries": summaries}
+
+
 # -- Helper: Generic status filter for a Test Plan ----------------------------
 
 def _get_runs_by_status_for_test_plan(test_plan_key: str, status_filter: str) -> list[dict]:
@@ -2638,9 +3978,11 @@ def xray_get_blocked_report(issue_key: str):
 
                             # If child appears to be a Test Execution, try to fetch its testrun
                             if "execution" in child_info["issue_type"].lower() or "testexec" in ck.lower() or "testexec" in (cobj.get("key") or "").lower():
-                                tr = client.get(
-                                    f"{XRAY_BASE_URL}/xray/testrun",
+                                tr = xray_request(
+                                    "GET",
+                                    "/testrun",
                                     params={"testExecIssueKey": ck, "testIssueKey": test_key},
+                                    timeout=30,
                                 )
                                 if tr.status_code == 200:
                                     tr_json = tr.json()
@@ -3107,6 +4449,26 @@ def _jira_auth_headers() -> dict:
     }
 
 
+def _confluence_auth_headers() -> dict:
+    """Return auth + JSON content headers for direct Confluence REST calls.
+
+    Confluence uses its own PAT (CONFLUENCE_PAT), separate from the Jira
+    token used by _jira_auth_headers() — these are different credentials
+    even though both instances live under api.skyway.porsche.com.
+    """
+    token = os.getenv("CONFLUENCE_PAT", "")
+    if not token:
+        raise HTTPException(
+            status_code=500,
+            detail="CONFLUENCE_PAT not configured in .env",
+        )
+    return {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+
 def _extract_jira_keys_from_xhtml(xhtml: str, project_key_pattern: str = r"[A-Z][A-Z0-9]+") -> list:
     """
     Return all unique Jira issue keys found in Confluence storage XHTML.
@@ -3196,6 +4558,10 @@ def _clone_jira_issue(source_key: str, field_overrides: dict, headers: dict) -> 
     fix_versions_raw = raw.get("fixVersions") or issue_data.get("fixVersions") or []
     fix_versions = [v.get("name") if isinstance(v, dict) else v for v in fix_versions_raw]
 
+    priority = (raw.get("priority") or issue_data.get("priority") or {})
+    if isinstance(priority, dict):
+        priority = priority.get("name")
+
     # Apply caller overrides
     if field_overrides.get("summary"):
         summary = field_overrides["summary"]
@@ -3216,6 +4582,8 @@ def _clone_jira_issue(source_key: str, field_overrides: dict, headers: dict) -> 
         params["components"] = components
     if fix_versions:
         params["fix_versions"] = fix_versions
+    if priority:
+        params["priority"] = priority
 
     with get_local_client(timeout=30) as client:
         resp = client.post(f"{XRAY_BASE_URL}/create_issue", params=params)
@@ -3252,6 +4620,26 @@ def _clone_jira_issue(source_key: str, field_overrides: dict, headers: dict) -> 
                 created["_custom_fields_copied"] = list(custom_fields_update.keys())
             except Exception as exc:
                 created["_custom_fields_copied"] = f"error: {exc}"
+
+    # --- Step 2b: Link new issue back to source with "Cloners" link, exactly
+    # as Jira's own native Clone action does ---
+    if new_key:
+        jira_base = os.getenv("JIRA_BASE_URL", "https://skyway.porsche.com/jira")
+        auth_headers = _jira_auth_headers()
+        try:
+            with get_client(timeout=30) as client:
+                link_resp = client.post(
+                    f"{jira_base}/rest/api/2/issueLink",
+                    headers={**auth_headers, "Content-Type": "application/json"},
+                    json={
+                        "type": {"name": "Cloners"},
+                        "inwardIssue": {"key": new_key},
+                        "outwardIssue": {"key": source_key},
+                    },
+                )
+                created["_cloners_link"] = "ok" if link_resp.status_code in (200, 201) else f"HTTP {link_resp.status_code} — {link_resp.text[:200]}"
+        except Exception as exc:
+            created["_cloners_link"] = f"error: {exc}"
 
     # --- Step 3: Copy Xray test associations (Test Plan only) ---
     if new_key and (issuetype or "").lower() == "test plan":
@@ -3307,16 +4695,23 @@ def _clone_jira_issue(source_key: str, field_overrides: dict, headers: dict) -> 
 
 
 def _create_confluence_page(space_key: str, parent_id: Optional[str],
-                             title: str, xhtml_body: str) -> dict:
+                             title: str, xhtml_body: str,
+                             status: str = "current") -> dict:
     """
     Create a new Confluence page with the given storage XHTML body.
     Returns {id, title, url} of the created page.
+
+    status: "current" (default, published immediately) or "draft"
+    (created unpublished — same state as clicking Confluence's native
+    "Copy"/"Kopieren" button, which opens the result for review before
+    publishing).
     """
     confluence_base = os.getenv("CONFLUENCE_BASE_URL", "https://api.skyway.porsche.com/confluence")
-    headers = _jira_auth_headers()
+    headers = _confluence_auth_headers()
 
     payload: dict = {
         "type": "page",
+        "status": status,
         "title": title,
         "space": {"key": space_key},
         "body": {
@@ -3345,10 +4740,301 @@ def _create_confluence_page(space_key: str, parent_id: Optional[str],
     links = data.get("_links") or {}
     base_url = links.get("base", confluence_base)
     web_ui = links.get("webui", "")
-    return {
+    result = {
         "id": data.get("id"),
         "title": data.get("title"),
         "url": f"{base_url}{web_ui}" if web_ui else "",
+        "status": data.get("status"),
+    }
+    if data.get("status") == "draft" and data.get("id"):
+        # Drafts don't have a normal view URL yet; this is the editor URL
+        # a user would land on if they clicked "Copy" in the Confluence UI.
+        result["url"] = f"{base_url}/pages/resumedraft.action?draftId={data.get('id')}"
+    return result
+
+
+def _get_confluence_page_storage_direct(page_id: str) -> dict:
+    """
+    Fetch a Confluence page's storage body directly via the Confluence REST
+    API (not the local proxy) — this is required for DRAFT pages, which the
+    local proxy's /page/{id} endpoint cannot see. Draft pages (the ones you
+    land on after clicking native Copy/Kopieren, e.g. .../resumedraft.action
+    ?draftId=<id>) are only returned by the REST API when status=draft is
+    passed explicitly, so this tries the normal request first and falls back
+    to status=draft on a 404.
+    """
+    confluence_base = os.getenv("CONFLUENCE_BASE_URL", "https://api.skyway.porsche.com/confluence")
+    headers = _confluence_auth_headers()
+
+    with get_client(timeout=30) as client:
+        resp = client.get(
+            f"{confluence_base}/rest/api/content/{page_id}",
+            headers=headers,
+            params={"expand": "body.storage,version,space"},
+        )
+        if resp.status_code == 404:
+            resp = client.get(
+                f"{confluence_base}/rest/api/content/{page_id}",
+                headers=headers,
+                params={"expand": "body.storage,version,space", "status": "draft"},
+            )
+        if resp.status_code != 200:
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"Failed to fetch Confluence page {page_id}: {resp.text[:500]}",
+            )
+        data = resp.json()
+
+    return {
+        "id": data.get("id"),
+        "title": data.get("title"),
+        "status": data.get("status", "current"),
+        "space_key": (data.get("space") or {}).get("key"),
+        "version_number": (data.get("version") or {}).get("number", 1),
+        "xhtml_body": ((data.get("body") or {}).get("storage") or {}).get("value", ""),
+    }
+
+
+def _update_confluence_page_body(page_id: str, new_xhtml_body: str, new_title: Optional[str] = None) -> dict:
+    """
+    Save new storage XHTML back to an existing Confluence page OR draft via a
+    versioned PUT — this is the programmatic equivalent of clicking "Edit"
+    on the page and pasting a new JQL/body, then hitting Save/Update.
+
+    Works on drafts (status stays "draft" until the user publishes it in the
+    UI) just as well as on published pages.
+    """
+    confluence_base = os.getenv("CONFLUENCE_BASE_URL", "https://api.skyway.porsche.com/confluence")
+    headers = _confluence_auth_headers()
+
+    current = _get_confluence_page_storage_direct(page_id)
+
+    payload = {
+        "id": str(page_id),
+        "type": "page",
+        "status": current["status"],
+        "title": new_title or current["title"],
+        "space": {"key": current["space_key"]} if current["space_key"] else None,
+        "body": {
+            "storage": {
+                "value": new_xhtml_body,
+                "representation": "storage",
+            }
+        },
+        "version": {"number": current["version_number"] + 1},
+    }
+    if not payload["space"]:
+        payload.pop("space")
+
+    with get_client(timeout=60) as client:
+        resp = client.put(
+            f"{confluence_base}/rest/api/content/{page_id}",
+            headers=headers,
+            json=payload,
+        )
+        if resp.status_code not in (200, 201):
+            raise HTTPException(
+                status_code=resp.status_code,
+                detail=f"Failed to update Confluence page {page_id}: {resp.text[:500]}",
+            )
+        data = resp.json()
+
+    links = data.get("_links") or {}
+    base_url = links.get("base", confluence_base)
+    web_ui = links.get("webui", "")
+    status = data.get("status")
+    if status == "draft":
+        url = f"{base_url}/pages/resumedraft.action?draftId={data.get('id')}"
+    else:
+        url = f"{base_url}{web_ui}" if web_ui else ""
+
+    return {
+        "id": data.get("id"),
+        "title": data.get("title"),
+        "status": status,
+        "version": (data.get("version") or {}).get("number"),
+        "url": url,
+    }
+
+
+def _get_page_immediate_parent_id(page_id: str) -> Optional[str]:
+    """
+    Return the immediate parent (direct ancestor) page ID for a Confluence
+    page, or None if it has no parent (top-level page in the space).
+
+    The local proxy's /page/{id} endpoint does not expose ancestors, so this
+    hits the Confluence REST API directly (same auth pattern as
+    _create_confluence_page) with expand=ancestors.
+    """
+    confluence_base = os.getenv("CONFLUENCE_BASE_URL", "https://api.skyway.porsche.com/confluence")
+    headers = _confluence_auth_headers()
+
+    with get_client(timeout=30) as client:
+        resp = client.get(
+            f"{confluence_base}/rest/api/content/{page_id}",
+            headers=headers,
+            params={"expand": "ancestors"},
+        )
+        if resp.status_code != 200:
+            return None
+        data = resp.json()
+
+    ancestors = data.get("ancestors") or []
+    if not ancestors:
+        return None
+    # The last entry in "ancestors" is the immediate parent
+    return ancestors[-1].get("id")
+
+
+@app.post(
+    "/confluence/{page_id}/copy",
+    operation_id="copy_confluence_page",
+    summary="Copy a Confluence page (mirrors the native 'Copy'/'Kopieren' action)",
+    tags=["prod_working"],
+)
+def copy_confluence_page(
+    page_id: str,
+    new_title: Optional[str] = Body(default=None, embed=True, description="Title for the copy. Defaults to 'Copy of {original title}', matching Confluence's native Copy action."),
+    same_parent: bool = Body(default=True, embed=True, description="When true (default), places the copy as a sibling under the same parent page as the source, exactly like the native Copy action."),
+    publish: bool = Body(default=False, embed=True, description="When false (default), creates the copy as an UNPUBLISHED DRAFT — same as clicking Confluence's native Copy/Kopieren button. Set true to publish it immediately instead."),
+):
+    """
+    Copy a single Confluence page — same behavior as clicking "Copy" /
+    "Kopieren" on a page in the Confluence UI:
+
+    1. Reads the source page's storage XHTML body + space + parent.
+    2. Creates a new page with the same body, titled "Copy of {title}"
+       (or a caller-supplied title), placed under the same parent as the
+       source (sibling), in the same space.
+    3. By default (publish=false) the copy is created with status="draft",
+       i.e. unpublished — matching the native Copy action so you can still
+       edit fields (like JQL macros) before publishing it yourself in the UI.
+    """
+    try:
+        page = _get_confluence_page_with_storage(page_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read source Confluence page {page_id}: {exc}",
+        )
+
+    xhtml_body = page["xhtml_body"]
+    if not xhtml_body:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Source page {page_id} returned an empty storage body.",
+        )
+
+    title = new_title or f"Copy of {page['title']}"
+
+    parent_id = None
+    if same_parent:
+        try:
+            parent_id = _get_page_immediate_parent_id(page_id)
+        except Exception:
+            parent_id = None
+
+    desired_status = "current" if publish else "draft"
+    try:
+        new_page = _create_confluence_page(
+            space_key=page["space_key"],
+            parent_id=parent_id,
+            title=title,
+            xhtml_body=xhtml_body,
+            status=desired_status,
+        )
+    except HTTPException as exc:
+        if desired_status == "draft":
+            # Some Confluence Server/DC versions reject draft creation via
+            # this REST call outright; fall back to a published copy rather
+            # than failing the whole request.
+            try:
+                new_page = _create_confluence_page(
+                    space_key=page["space_key"],
+                    parent_id=parent_id,
+                    title=title,
+                    xhtml_body=xhtml_body,
+                    status="current",
+                )
+                new_page["draft_fallback_reason"] = str(exc.detail)
+            except Exception as exc2:
+                raise HTTPException(status_code=500, detail=f"Failed to create copy (draft and published both failed): {exc2}")
+        else:
+            raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to create copy: {exc}")
+
+    return {
+        "source_page_id": page_id,
+        "source_page_title": page["title"],
+        "source_page_url": page["url"],
+        "new_page_id": new_page.get("id"),
+        "new_page_title": new_page.get("title"),
+        "new_page_url": new_page.get("url"),
+        "new_page_status": new_page.get("status"),
+        "parent_id": parent_id,
+        "draft_fallback_reason": new_page.get("draft_fallback_reason"),
+    }
+
+
+@app.post(
+    "/confluence/{page_id}/update-keys",
+    operation_id="update_confluence_page_keys",
+    summary="Replace Jira keys (and their embedded JQLs) inside a Confluence page or draft \u2014 no manual Edit needed",
+    tags=["prod_working"],
+)
+def update_confluence_page_keys(
+    page_id: str,
+    key_map: dict = Body(..., description="Mapping of old Jira key -> new Jira key, e.g. {\"OTA-6262\": \"OTA-9142\"}. Every occurrence (Jira macro params, JQL text such as 'key = OTA-6262', links) is replaced throughout the page body."),
+    new_title: Optional[str] = Body(default=None, description="Optional new title for the page. Leave empty to keep the current title."),
+):
+    """
+    Programmatic equivalent of opening a Confluence page (or an unpublished
+    draft, e.g. the one you land on after clicking native Copy/Kopieren \u2014
+    .../pages/resumedraft.action?draftId=<id>), clicking Edit, replacing the
+    old Jira Test Plan key inside the JQL/macro with a new one, and hitting
+    Save \u2014 all in a single API call, no manual editing required.
+
+    Typical flow:
+    1. Call POST /confluence/{page_id}/copy to create an unpublished draft
+       copy of a Test Plan page (returns a draftId).
+    2. Call a clone/rollover endpoint (e.g. /rollover/clone-issue or
+       /rollover/clone) for the relevant region + working group to get the
+       new Jira Test Plan key(s).
+    3. Call this endpoint with page_id=<draftId> and
+       key_map={"<old_test_plan_key>": "<new_test_plan_key>", ...} to update
+       every JQL/macro reference on the draft in one shot.
+    4. Publish the draft manually in Confluence once satisfied.
+
+    Works on both published pages and unpublished drafts.
+    """
+    if not key_map:
+        raise HTTPException(status_code=422, detail="key_map must contain at least one old_key -> new_key pair")
+
+    try:
+        page = _get_confluence_page_storage_direct(page_id)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to read Confluence page {page_id}: {exc}")
+
+    xhtml_body = page["xhtml_body"]
+    if not xhtml_body:
+        raise HTTPException(status_code=422, detail=f"Page {page_id} returned an empty storage body.")
+
+    updated_xhtml = _substitute_keys_in_xhtml(xhtml_body, key_map)
+
+    updated_page = _update_confluence_page_body(page_id, updated_xhtml, new_title=new_title)
+
+    return {
+        "page_id": page_id,
+        "page_title": updated_page.get("title"),
+        "page_status": updated_page.get("status"),
+        "page_url": updated_page.get("url"),
+        "new_version": updated_page.get("version"),
+        "keys_replaced": key_map,
     }
 
 
@@ -3356,6 +5042,7 @@ def _create_confluence_page(space_key: str, parent_id: Optional[str],
     "/rollover/clone",
     operation_id="rollover_clone_test_plan_page",
     summary="Clone a Confluence Test Plan page and all linked Jira Test Plans (rollover)",
+    tags=["Clone Test Plans"],
 )
 def rollover_clone_test_plan_page(
     source_page_id: str = Body(..., description="Confluence page ID of the source Test Plan page (e.g. '2558891351')"),
@@ -3513,6 +5200,7 @@ def rollover_clone_test_plan_page(
     "/rollover/clone-issue",
     operation_id="rollover_clone_single_issue",
     summary="Clone a single Jira issue and return the new ID (sandbox-safe)",
+    tags=["prod_working"],
 )
 def rollover_clone_single_issue(
     source_key: str = Body(..., description="Jira issue key to clone, e.g. 'OTA-6264'"),
@@ -3591,6 +5279,348 @@ def rollover_clone_single_issue(
             "issuetype": "Test Plan",
             "project": source_key.split("-")[0],
         },
+    }
+
+
+@app.post(
+    "/confluence/{page_id}/clone-testplans",
+    operation_id="clone_all_testplans_from_confluence_page",
+    summary="Clone every Test Plan Jira issue found on a Confluence page and return old->new key mapping",
+    tags=["prod_working"],
+)
+def clone_all_testplans_from_confluence_page(
+    page_id: str,
+    dry_run: bool = Body(default=True, embed=True, description="When true (default), previews the keys that would be cloned without creating anything"),
+    region: str = Body(default=None, embed=True, description="Optional region filter, e.g. 'ECE' or 'Testing ECE'"),
+    working_group: str = Body(default=None, embed=True, description="Optional working group filter, e.g. 'Navigation'"),
+):
+    """
+    Discover ONLY genuine Test Plan JQL entries on the given Confluence SOP
+    page — i.e. entries that have a resolved region, a resolved working
+    group, AND a full JQL block (must include at least PASS, FAIL, and
+    BLOCKED queries) — then clone each matching Jira issue.
+
+    This intentionally EXCLUDES any Jira key found elsewhere on the page
+    (e.g. unrelated "Mapping of Testautomation Test Executions" tables)
+    which are not real Test Plan JQL rows and were being cloned by mistake.
+
+    - dry_run=true  → lists the keys that would be cloned, no writes
+    - dry_run=false → clones each issue for real, returns {old_key: new_key} pairs
+    """
+    entries = _build_confluence_testplan_entries(page_id)
+
+    # Only keep entries that look like a genuine Test Plan JQL row: resolved
+    # region, resolved working group, and PASS/FAIL/BLOCKED all present.
+    required_jql_labels = {"PASS", "FAIL", "BLOCKED"}
+    key_maps = [
+        e for e in entries
+        if e.get("region") and e["region"] != "?"
+        and e.get("working_group") and e["working_group"] != "?"
+        and required_jql_labels.issubset((e.get("jqls") or {}).keys())
+    ]
+
+    if region:
+        region_norm = region.strip().lower().split()[-1]
+        key_maps = [m for m in key_maps if region_norm in (m.get("region") or "").lower()]
+    if working_group:
+        wg_norm = working_group.strip().lower()
+        key_maps = [m for m in key_maps if wg_norm in (m.get("working_group") or "").lower()]
+
+    if not key_maps:
+        raise HTTPException(status_code=404, detail="No valid Test Plan JQL entries (region + working group + PASS/FAIL/BLOCKED) found for the given page/filters")
+
+    if dry_run:
+        return {
+            "page_id": page_id,
+            "dry_run": True,
+            "total_test_plans": len(key_maps),
+            "would_clone": [
+                {"region": m.get("region"), "working_group": m.get("working_group"), "key": m.get("key")}
+                for m in key_maps
+            ],
+        }
+
+    mapping: dict = {}
+    failures: list = []
+    for m in key_maps:
+        old_key = m.get("key")
+        try:
+            created = _clone_jira_issue(old_key, {}, {})
+            new_key = created.get("key")
+            if not new_key:
+                raise ValueError(f"Clone returned no key: {created}")
+            mapping[old_key] = new_key
+        except Exception as exc:
+            failures.append({"old_key": old_key, "error": str(exc)})
+
+    return {
+        "page_id": page_id,
+        "dry_run": False,
+        "total_cloned": len(mapping),
+        "mapping": mapping,
+        "failures": failures,
+    }
+
+
+def _jira_ui_base_url() -> str:
+    """Resolve the Jira UI host. The browsable UI is served from
+    skyway.porsche.com (no "api." prefix) — the api.skyway.porsche.com host
+    is REST-API-only and does not serve browser-renderable issue pages.
+    """
+    ui_base = os.getenv("JIRA_UI_BASE_URL")
+    if ui_base:
+        return ui_base.rstrip("/")
+    api_base = os.getenv("JIRA_BASE_URL", "https://api.skyway.porsche.com/jira")
+    return api_base.replace("api.skyway.porsche.com", "skyway.porsche.com").rstrip("/")
+
+
+def _browser_clone_jira_issue(source_key: str, jira_base: str, headless: bool = True) -> str:
+    """
+    Automate the native Jira 'More (...) -> Clone' action in a real, already
+    logged-in browser session on this machine.
+
+    Instead of spinning up a bare, unauthenticated Chromium context (which
+    has to negotiate proxy/SSO auth itself and was failing with
+    ERR_INVALID_AUTH_CREDENTIALS), this launches the system browser with the
+    user's REAL profile directory (launch_persistent_context), so it reuses
+    the exact same cookies/Windows-integrated session that already works
+    when browsing Jira manually. No Authorization header or custom proxy
+    config is injected — the browser just behaves like your normal browsing.
+
+    Tries, in order: Chrome, Brave, then Edge (msedge) — Edge enterprise
+    policy in this environment blocks DevTools/remote-debugging attachment
+    to the real default profile ("NewTabPageLocation policy" / "DevTools
+    remote debugging requires a non-default data directory"), so Chrome or
+    Brave (usually unmanaged / less locked-down) are tried first.
+
+    NOTE: each browser keeps a hidden background process running (for
+    notifications/startup-boost) even after you close every visible window,
+    which locks the profile directory and silently routes navigation into
+    that existing session instead of a debuggable one. This function
+    force-closes any lingering processes for the browser being tried before
+    launching, to guarantee a clean, controllable session.
+
+    Returns the new issue key (e.g. 'MLBEVO-12345').
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+    except Exception:
+        raise HTTPException(
+            status_code=501,
+            detail="Playwright not installed. Install with `pip install playwright`.",
+        )
+
+    issue_url = f"{jira_base}/browse/{source_key}"
+
+    local_appdata = os.path.expandvars(r"%LOCALAPPDATA%")
+    program_files_x86 = os.path.expandvars(r"%PROGRAMFILES(X86)%")
+
+    # (name, playwright channel, user_data_dir, executable_path or None)
+    #
+    # IMPORTANT: Chrome/Edge Enterprise policy blocks DevTools remote
+    # debugging when user_data_dir points at the STANDARD default location
+    # (e.g. "...\Google\Chrome\User Data"), regardless of which profile
+    # subfolder is selected via --profile-directory. The only reliable
+    # workaround is to copy an already-authenticated profile out to a
+    # custom, non-standard directory and point Playwright at that copy
+    # instead (see CHROME_USER_DATA_DIR override below).
+    browser_candidates = [
+        (
+            "chrome",
+            "chrome",
+            os.getenv("CHROME_USER_DATA_DIR", r"C:\ChromeAutomationProfile"),
+            None,
+        ),
+        (
+            "brave",
+            None,
+            os.getenv("BRAVE_USER_DATA_DIR", r"C:\BraveAutomationProfile"),
+            os.getenv(
+                "BRAVE_EXECUTABLE",
+                os.path.join(local_appdata, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
+            ),
+        ),
+        (
+            "msedge",
+            "msedge",
+            os.getenv("EDGE_USER_DATA_DIR", os.path.join(local_appdata, "Microsoft", "Edge", "User Data")),
+            None,
+        ),
+    ]
+    # The custom Chrome directory uses "Default" as its profile subfolder
+    # name (it's a copy of the source profile placed directly under
+    # C:\ChromeAutomationProfile\Default). Other browsers still fall back
+    # to their real "Profile 1"/BROWSER_PROFILE_DIRECTORY.
+    profile_dir = os.getenv("BROWSER_PROFILE_DIRECTORY", "Default")
+
+    process_names = {"chrome": "chrome.exe", "brave": "brave.exe", "msedge": "msedge.exe"}
+
+    last_error = None
+    errors_by_browser: dict = {}
+    context = None
+    used_browser = None
+    with sync_playwright() as p:
+        for name, channel, user_data_dir, executable_path in browser_candidates:
+            if channel is None and (not executable_path or not os.path.isfile(executable_path)):
+                errors_by_browser[name] = "executable not found at expected path"
+                continue  # e.g. Brave not installed at the expected path
+            if not os.path.isdir(user_data_dir):
+                errors_by_browser[name] = f"user_data_dir not found: {user_data_dir}"
+                continue  # this browser isn't installed/used on this machine
+
+            # Kill any lingering background process for this browser so the
+            # profile directory isn't locked by an existing session.
+            try:
+                subprocess.run(
+                    ["taskkill", "/F", "/IM", process_names[name], "/T"],
+                    capture_output=True, timeout=10,
+                )
+                time.sleep(1)
+            except Exception:
+                pass
+
+            launch_kwargs = dict(
+                user_data_dir=user_data_dir,
+                headless=headless,
+                args=[f"--profile-directory={profile_dir}", "--start-maximized"],
+                timeout=30000,
+            )
+            if channel:
+                launch_kwargs["channel"] = channel
+            else:
+                launch_kwargs["executable_path"] = executable_path
+
+            try:
+                context = p.chromium.launch_persistent_context(**launch_kwargs)
+                used_browser = name
+                break
+            except Exception as exc:
+                last_error = exc
+                errors_by_browser[name] = str(exc)
+                continue
+
+        if context is None:
+            raise HTTPException(
+                status_code=501,
+                detail=(
+                    "Could not launch any browser (tried chrome, brave, msedge) with a "
+                    f"real profile. Errors: {errors_by_browser}"
+                ),
+            )
+
+        try:
+            page = context.new_page()
+            # Jira pages keep background polling/websockets alive, so
+            # "networkidle" can hang indefinitely and never resolve — use
+            # "load" instead and let the locator auto-wait handle readiness
+            # of the actual "More" button.
+            page.goto(issue_url, wait_until="load", timeout=30000)
+
+            # Open the "More" (...) actions menu on the issue view
+            more_button = page.get_by_role("button", name=re.compile("more", re.I)).first
+            more_button.click(timeout=10000)
+
+            # Click the "Clone" menu item
+            clone_item = page.get_by_role("link", name=re.compile(r"^clone$", re.I)).first
+            if clone_item.count() == 0:
+                clone_item = page.get_by_text(re.compile(r"^clone$", re.I)).first
+            clone_item.click(timeout=10000)
+
+            # Confirm the clone dialog (button usually labeled "Clone")
+            confirm_button = page.get_by_role("button", name=re.compile(r"^clone$", re.I)).first
+            confirm_button.click(timeout=10000)
+
+            # Wait for redirect to the newly created issue
+            page.wait_for_url(re.compile(r"/browse/[A-Z][A-Z0-9]+-\d+"), timeout=20000)
+            final_url = page.url
+        finally:
+            context.close()
+
+    m = re.search(r"/browse/([A-Z][A-Z0-9]+-\d+)", final_url)
+    if not m:
+        raise HTTPException(status_code=500, detail=f"Could not determine new issue key from URL: {final_url}")
+    new_key = m.group(1)
+    if new_key == source_key:
+        raise HTTPException(status_code=500, detail="Clone did not navigate to a new issue — UI flow may have changed")
+    return new_key
+
+
+@app.post(
+    "/jira/{source_key}/native-clone",
+    operation_id="native_browser_clone_jira_issue",
+    summary="Clone a Jira issue by driving the actual Jira UI (More -> Clone), like a manual click",
+    tags=["Clone Issue"],
+)
+def native_browser_clone_jira_issue(
+    source_key: str,
+    headless: bool = Body(default=True, embed=True, description="Run the browser headless (no visible window)"),
+):
+    """
+    Opens the real Jira issue page in a headless/headed Chromium browser
+    (using the same PAT/Bearer auth as the rest of this server, so no manual
+    login is needed), clicks More -> Clone exactly like a user would, confirms
+    the dialog, and returns the new issue key created by Jira itself.
+
+    This performs the actual native clone — not a scripted field-by-field
+    recreation — so every field Jira's built-in Clone action normally copies
+    (summary, priority, links, attachments, etc., depending on your Jira
+    config) is preserved exactly as it would be if you clicked it yourself.
+    """
+    jira_base = _jira_ui_base_url()
+    new_key = _browser_clone_jira_issue(source_key, jira_base, headless=headless)
+    return {
+        "source_key": source_key,
+        "new_key": new_key,
+        "jira_url": f"{jira_base}/browse/{new_key}",
+    }
+
+
+@app.post(
+    "/confluence/{page_id}/native-clone-testplans",
+    operation_id="native_browser_clone_all_testplans",
+    summary="Clone every Test Plan Jira issue on a Confluence page via native UI clicks, return old->new key map",
+    tags=["Clone Test Plans"],
+)
+def native_browser_clone_all_testplans(
+    page_id: str,
+    headless: bool = Body(default=True, embed=True, description="Run the browser headless (no visible window)"),
+):
+    """
+    Given only a Confluence page ID:
+    1. Extracts every Test Plan key from the page (same source as
+       /confluence/{page_id}/testplan-jqls).
+    2. For each key, drives a real browser to the Jira issue page and clicks
+       More -> Clone -> Clone, exactly like a manual click (no field-by-field
+       REST recreation).
+    3. Returns {old_key: new_key} for every issue cloned, plus any failures.
+    """
+    jira_base = _jira_ui_base_url()
+    entries = _build_confluence_testplan_entries(page_id)
+    required_jql_labels = {"PASS", "FAIL", "BLOCKED"}
+    old_keys = sorted({
+        e["key"] for e in entries
+        if e.get("key")
+        and e.get("region") and e["region"] != "?"
+        and e.get("working_group") and e["working_group"] != "?"
+        and required_jql_labels.issubset((e.get("jqls") or {}).keys())
+    })
+
+    if not old_keys:
+        raise HTTPException(status_code=404, detail="No valid Test Plan JQL entries (region + working group + PASS/FAIL/BLOCKED) found on this Confluence page")
+
+    mapping: dict = {}
+    failures: list = []
+    for old_key in old_keys:
+        try:
+            mapping[old_key] = _browser_clone_jira_issue(old_key, jira_base, headless=headless)
+        except Exception as exc:
+            failures.append({"old_key": old_key, "error": str(exc)})
+
+    return {
+        "page_id": page_id,
+        "total_cloned": len(mapping),
+        "mapping": mapping,
+        "failures": failures,
     }
 
 
@@ -3728,8 +5758,7 @@ def tmp_jql_fail_report(
         comment = ""
         if run_id:
             try:
-                with get_local_client(timeout=20) as client:
-                    r = client.get(f"{XRAY_BASE_URL}/xray/testrun/{run_id}")
+                r = xray_request("GET", f"/testrun/{run_id}", timeout=20)
                 if r.status_code == 200:
                     run_detail = r.json()
                     kpm_id = _get_kpm_from_run(run_detail) or "No KPM"
@@ -3789,7 +5818,7 @@ def tmp_jql_fail_report(
 # -- Mount MCP + run -----------------------------------------------------------
 # NEW
 mcp = FastApiMCP(app)
-mcp.mount(mount_path="/mcp")
+mcp.mount_http(mount_path="/mcp")
 
 if __name__ == "__main__":
     import uvicorn

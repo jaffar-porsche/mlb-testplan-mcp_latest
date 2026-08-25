@@ -163,10 +163,8 @@ async def get_page(page_id: str):
             "url": f"{CONFLUENCE_BASE_URL}/pages/viewpage.action?pageId={page['id']}"
         }
     except Exception as e:
+        logger.exception(f"Failed to fetch page {page_id}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch page: {e}")
-
-
-@router.put("/page/{page_id}", summary="Update a Confluence page", operation_id="update_page")
 async def update_page(page_id: str, request: UpdatePageRequest):
     """
     Update an existing Confluence page.

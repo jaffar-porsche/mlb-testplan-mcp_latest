@@ -89,20 +89,33 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Install dependencies
-echo Installing dependencies
-python -m pip install --upgrade pip
-if exist requirements.txt (
-    echo Installing from requirements.txt...
-    pip install -r requirements.txt
-) else (
-    echo requirements.txt not found, installing default packages...
-    pip install fastapi-mcp fastapi httpx uvicorn jira python-dotenv pydantic
+REM Install dependencies - only if requirements.txt changed since last install
+ REM (skips the slow pip resolve/check pass on every terminal restart).
+set NEED_INSTALL=1
+if exist requirements.txt if exist venv\.installed if exist venv\.requirements.snapshot (
+    fc /b requirements.txt venv\.requirements.snapshot >nul 2>&1
+    if !errorlevel! equ 0 set NEED_INSTALL=0
 )
-if %errorlevel% neq 0 (
-    echo Failed to install dependencies
-    pause
-    exit /b 1
+
+if !NEED_INSTALL! equ 1 (
+    echo Installing dependencies
+    python -m pip install --upgrade pip
+    if exist requirements.txt (
+        echo Installing from requirements.txt...
+        pip install -r requirements.txt
+    ) else (
+        echo requirements.txt not found, installing default packages...
+        pip install fastapi-mcp fastapi httpx uvicorn jira python-dotenv pydantic
+    )
+    if !errorlevel! neq 0 (
+        echo Failed to install dependencies
+        pause
+        exit /b 1
+    )
+    if exist requirements.txt copy /y requirements.txt venv\.requirements.snapshot >nul
+    type nul > venv\.installed
+) else (
+    echo Dependencies already installed and requirements.txt unchanged - skipping.
 )
 
 REM Check for .env file

@@ -1,0 +1,19 @@
+Windows Registry Editor Version 5.00
+
+; Registers a custom "mlbstart://" URL protocol that Windows/the browser
+; will hand off to start-server-protocol.bat, which in turn launches the
+; MLB TestPlan MCP server (launch.bat -> uvicorn on port 8080).
+;
+; One-time setup: double-click this file and accept the UAC/registry prompt.
+; After that, the "Start Server" button on dashboard.html will work.
+
+[HKEY_CURRENT_USER\Software\Classes\mlbstart]
+@="URL:MLB TestPlan MCP Start Protocol"
+"URL Protocol"=""
+
+[HKEY_CURRENT_USER\Software\Classes\mlbstart\shell]
+
+[HKEY_CURRENT_USER\Software\Classes\mlbstart\shell\open]
+
+[HKEY_CURRENT_USER\Software\Classes\mlbstart\shell\open\command]
+@="\"C:\\Users\\UOUMPC3\\Desktop\\mlb-testplan-mcp\\start-server-protocol.bat\" \"%1\""
