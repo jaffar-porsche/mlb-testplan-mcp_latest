@@ -1,0 +1,183 @@
+# Managed by the Turbo Spec onboarding app.
+#
+# Provisioned into your repository at .github/workflows/ai.yml, from
+# customer_bootstrap/ai.yml in porsche-code/turbo-spec. Keep this header: it is
+# how a future engine update can tell a file we wrote from one of your own that
+# happens to call our actions.
+#
+# customer_bootstrap/ai.yml — thin consumer shim
+# Copy this to .github/workflows/ai.yml in your project repo.
+#
+# All engine logic — checkout auth, gerhard setup, sandbox wiring, and the
+# interim workarounds for known engine issues (container runtime #851, egress
+# allow-list #853) — lives centrally in the reusable workflow
+# porsche-code/turbo-spec/.github/workflows/engine.yml. When an engine fix
+# ships, the interim is removed THERE; this shim never changes for that.
+#
+# What to customize here:
+#   - The `uses:` pin. By default the onboarding app AUTO-PINS the `uses:` ref
+#     and `engine_ref:` to the turbo-spec release current at wiring time, so
+#     onboarded repos track an immutable release rather than `main` (an explicit
+#     TURBO_SPEC_ENGINE_REF overrides this; if no release resolves, onboarding
+#     FAILS LOUD rather than shipping a `main`-tracking consumer — and a missing
+#     or lapsed GitHub connection is reported as an authorization failure to
+#     reconnect, not as a missing release, see docs/onboarding.md). `engine_ref`
+#     is a REQUIRED input on `engine.yml` (no default) — the `@main` below and
+#     the active `engine_ref: v0.50.0` under `with:` are what make manual
+#     copy-paste work out of the box. For a manual install pin a release tag
+#     (e.g. @v1.2.3 — see https://github.com/porsche-code/turbo-spec/releases)
+#     on the `uses:` line AND update `engine_ref:` under `with:` to the same
+#     tag — `engine.yml` checks out the engine repo at `engine_ref`
+#     independently of the `uses:` pin, so the two must always match.
+#   - Nothing else for the default setup. Blueprint overlays stay consumer-side
+#     (e.g. .turbo-spec/workflows/bug-fix.yml appending reporter skills) — the
+#     engine discovers them in your repo; they are not wired here.
+#
+# Prerequisites: org secrets TURBO_SPEC_APP_ID / TURBO_SPEC_APP_KEY (+ optional
+# telemetry key) — forwarded via `secrets: inherit`. GH_COPILOT_TOKEN is now
+# OPTIONAL: when unset, the built-in GITHUB_TOKEN authenticates Copilot via the
+# `copilot-requests: write` permission below (set GH_COPILOT_TOKEN to an
+# OAuth-style Copilot-seat token to use a dedicated no-write credential instead;
+# PATs are rejected by GitHub's Copilot endpoint, see #919).
+#
+# This file needs NO edit for approval-sentinel attestation
+# (REQ-HUMAN-APPROVAL-018): `secrets: inherit` already forwards the App
+# credentials, and the reusable workflow mints the second, `issues: write` token
+# itself. What it does need is the App INSTALLED on this repository with that
+# permission — without it the approval request is still posted, under
+# `github-actions[bot]`, and its sentinel is *unattested*: usable, but a consumer
+# cannot tell it from one any workflow here could have written. Companion files:
+# customer_bootstrap/ai-watch.yml (failure watcher), customer_bootstrap/comment-router.yml (PR feedback resume).
+
+name: AI Workflow
+
+# Self-label telemetry-forward dispatches (#625) so they are distinguishable
+# from real pipeline runs in the Actions tab.
+run-name: ${{ (github.event_name == 'workflow_dispatch' && inputs.action == 'otel') && 'telemetry-forward (otel)' || 'AI Workflow' }}
+
+# Serialise engine runs PER ISSUE. A duplicate `labeled` delivery for the same issue —
+# observed in the wild, and not rare: 1 of 12 benchmark issues in one campaign received the
+# trigger label twice — otherwise starts a SECOND engine run that races the first. Both work
+# the same branch; the loser fails its push (`failed to push some refs`) and its cleanup then
+# deletes the branch and closes the PR the winner is still using. The winner runs on to
+# success ~20 minutes later with nowhere to report, so its PR is closed, no eval result is
+# ever produced for it, and the trial never resolves.
+#
+# `cancel-in-progress: false` is deliberate and load-bearing: cancelling would let a spurious
+# duplicate KILL a healthy in-flight run, which is strictly worse than the bug. Queuing makes
+# the duplicate harmless — it cannot race a branch it has to wait for.
+#
+# The key has two components, and BOTH are required:
+#
+#   1. The run identity — `issues` events key on the issue; a `workflow_dispatch` that names
+#      an issue keys on the same value, so a manual re-run serialises against a label-driven
+#      one. Everything else (notably the `otel` telemetry-forward dispatch, which has no
+#      issue at all) falls back to `run_id` and is therefore always its own group.
+#   2. The trigger-relevance flag — `true` for any non-`labeled` event, and for a `labeled`
+#      event ONLY when the label added is the trigger label. This mirrors the `if:` on the
+#      job below, and it is not cosmetic: this workflow is triggered by EVERY `labeled`
+#      delivery, including the engine's own routing-label writes DURING a run. Without the
+#      flag each of those enters the live run's group, and since GitHub keeps at most ONE
+#      pending run per group and CANCELS the previous pending one to make room, the queue
+#      would churn with no-op runs that only exist to be skipped. With it they land in a
+#      separate `…-false` group and never serialise against a real run.
+#
+# KNOWN GAP — resume dispatches are NOT covered. `comment-router.yml` and the engine's own
+# yield-continuation dispatch pass only `session_id`, never `issue_number`, so they fall back
+# to `run_id` and can still race an issue-keyed run on the same branch. Closing that needs the
+# session→issue number plumbed through the dispatch; tracked separately, deliberately not
+# widened into this fix.
+concurrency:
+  group: ai-workflow-${{ github.event.issue.number || inputs.issue_number || github.run_id }}-${{ github.event.action != 'labeled' || github.event.label.name == 'ready-for-agent' }}
+  cancel-in-progress: false
+
+on:
+  issues:
+    types: [labeled]
+  # The router dispatches this workflow with -f session_id/-f feedback; keep
+  # these inputs or the dispatch fails with "Unexpected inputs provided".
+  workflow_dispatch:
+    inputs:
+      blueprint:
+        description: "Optional explicit blueprint (path like .turbo-spec/feature.yml, or a bare built-in name like 'feature'). Leave empty for label-based detection."
+        required: false
+        type: string
+        default: ""
+      issue_number:
+        description: "Issue number to process"
+        required: false
+        type: string
+      session_id:
+        description: "Optional session id to resume a prior run."
+        required: false
+        type: string
+        default: ""
+      feedback:
+        description: "Optional human feedback text (requires session_id). Auto-set by comment-router.yml."
+        required: false
+        type: string
+        default: ""
+      # Telemetry forwarding (#625): a local `run` dispatches this workflow with
+      # action=otel + payload to replay its telemetry into New Relic from CI.
+      # Leave 'run' for normal pipeline dispatches.
+      action:
+        description: "Dispatch mode: 'run' (pipeline) or 'otel' (telemetry-forward). Auto-set by `workflow-skeleton run`."
+        required: false
+        type: string
+        default: "run"
+      payload:
+        description: "Telemetry payload (gzip+base64). Auto-set when action=otel."
+        required: false
+        type: string
+        default: ""
+
+# A reusable workflow can only receive — never raise — the caller's token
+# permissions, so the full set must be granted here. packages: read pulls the
+# internal-visibility agent-sandbox image from GHCR.
+permissions:
+  contents: write
+  issues: write
+  pull-requests: write
+  actions: write
+  # Pull the internal ghcr.io/porsche-code/agent-sandbox image. An explicit
+  # permissions block zeroes every unlisted scope, so without this the job
+  # token cannot read the package and the sandbox image pull is denied.
+  packages: read
+  # Lets the built-in GITHUB_TOKEN authenticate Copilot when no GH_COPILOT_TOKEN
+  # secret is set. A reusable workflow can only receive the caller's permissions,
+  # so this must be granted here on the caller.
+  copilot-requests: write
+
+jobs:
+  run:
+    # Fire only when the label JUST added is 'ready-for-agent' — checking
+    # github.event.label.name (not contains() over the whole label set) stops
+    # the engine's own routing-label writes and multi-label selects from
+    # re-triggering duplicate runs. Do NOT switch to contains(...).
+    # workflow_dispatch always bypasses this gate.
+    if: |
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'issues' &&
+       github.event.label.name == 'ready-for-agent')
+    uses: porsche-code/turbo-spec/.github/workflows/engine.yml@v0.50.0
+    secrets: inherit
+    with:
+      # Empty blueprint → the engine detects it from labels / issue context
+      # (falling back to the built-in feature.yml), or recovers it from the
+      # session on resume.
+      blueprint: ${{ inputs.blueprint }}
+      labels: ${{ github.event_name == 'issues' && join(github.event.issue.labels.*.name, ',') || '' }}
+      issue_number: ${{ github.event.issue.number || inputs.issue_number }}
+      session_id: ${{ inputs.session_id }}
+      feedback: ${{ inputs.feedback }}
+      action: ${{ inputs.action }}
+      payload: ${{ inputs.payload }}
+      stream: "true"
+      # Must match the ref pinned on the `uses:` line above (defaults to
+      # `main` here for manual copy-paste; the onboarding app rewrites both
+      # in lockstep to the same release tag — see normalizeRefs()).
+      engine_ref: v0.50.0
+      # Debugging a run? Set the repo Actions VARIABLE TURBOSPEC_PR_REPORT_MODE
+      # to "debug" (Settings → Secrets and variables → Actions → Variables) to
+      # get the live per-stage comment stream on top of the final run report.
+      # No workflow edit needed — delete the variable when done.

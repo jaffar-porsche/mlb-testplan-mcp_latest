@@ -1,0 +1,130 @@
+# Managed by the Turbo Spec onboarding app — bug intake issue form.
+#
+# Provisioned into your repository at .github/ISSUE_TEMPLATE/turbo-spec-bug.yml by
+# Pipeline Wiring, from customer_bootstrap/issue_templates/turbo-spec-bug.yml in
+# porsche-code/turbo-spec. Edit it freely — but a future wiring PR proposes
+# overwriting it, so keep local changes worth re-applying. Prefer your own bug
+# template? Delete this file; a later wiring PR will propose adding it back, so
+# drop that file from the diff when you review it.
+#
+# This marker is the only signal that the file is turbo-spec-managed. Engine
+# Update recognizes a managed caller by its active `uses: porsche-code/turbo-spec/`
+# line — an issue form has none, so it is invisible to that flow and is never
+# re-synced or removed by it.
+#
+# The `bug` label below is what routes a filed issue to the built-in `bug-fix`
+# blueprint. Adding `ready-for-agent` on top is the human triage gate that starts
+# the run. Consumer blueprints in .turbo-spec/workflows/ that declare the same
+# routing label take precedence over the built-in one.
+name: "🐛 Bug Report"
+description: File a bug in this repository. Once triaged it can be fixed by the turbo-spec bug-fix workflow.
+title: "bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. The fields below are the brief the fix works from —
+        the more precise they are, the better the diagnosis.
+
+        **Redact secrets before you submit.** Everything you type here is read by an
+        AI agent and quoted back into the run report, so treat every field as public:
+        no tokens, credentials, or internal hostnames you would not paste in a PR.
+
+        Add the **`ready-for-agent`** label once triaged to launch the autonomous
+        bug-fix workflow (diagnose → fix → verify → report). It opens a draft pull
+        request and reports back on it. Leave the label off to keep this a plain
+        human-triaged bug.
+
+        The fields feed a neutral problem record:
+        - Summary → the record title · Severity → severity
+        - Environment, Version / commit → detection
+        - Expected → statement (expected) · Actual → statement (observed)
+        - Logs & evidence → verification evidence
+        - Steps to reproduce, Additional notes → retained in the issue body for triage
+
+  - type: textarea
+    id: summary
+    attributes:
+      label: "Summary"
+      description: "One or two sentences describing the bug. Used as the problem-record title, so keep it consistent with the issue title above."
+      placeholder: "Uploading a file larger than 10 MB returns 500 instead of a validation error."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: "Severity"
+      description: "How badly does this block work?"
+      options:
+        - blocker
+        - critical
+        - major
+        - minor
+        - trivial
+    validations:
+      required: true
+
+  - type: input
+    id: environment
+    attributes:
+      label: "Environment"
+      description: "Where the bug was observed — the deployment, stage, or machine. Maps to the problem record's detection. Keep it coarse; no internal hostnames or URLs."
+      placeholder: "production / staging / local dev"
+    validations:
+      required: false
+
+  - type: input
+    id: ref
+    attributes:
+      label: "Version / commit SHA"
+      description: "The release, branch, or commit of this repository the bug was observed on. Maps to detection."
+      placeholder: "v2.1.0"
+    validations:
+      required: false
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: "Steps to reproduce"
+      description: "Minimal numbered steps that trigger the bug. A reproduction the fix can verify against is the single most useful field here."
+      placeholder: |
+        1. Sign in as a standard user.
+        2. Open Settings → Import.
+        3. Upload a 12 MB CSV.
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: "Expected behavior"
+      description: "What should happen? Maps to the problem record's statement (expected)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: actual
+    attributes:
+      label: "Actual behavior"
+      description: "What actually happens? Maps to the problem record's statement (observed)."
+    validations:
+      required: true
+
+  - type: textarea
+    id: log-evidence
+    attributes:
+      label: "Logs & evidence"
+      description: "Log excerpts, a failing CI run URL, screenshots, or other evidence. **Redact any tokens, secrets, or credentials before posting.**"
+      render: text
+    validations:
+      required: false
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: "Additional notes"
+      description: "Any other context, workarounds tried, or links (related issue/PR)."
+    validations:
+      required: false

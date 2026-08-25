@@ -1,0 +1,123 @@
+# Managed by the Turbo Spec onboarding app.
+#
+# Provisioned into your repository at .github/workflows/push-session.yml, from
+# customer_bootstrap/push-session.yml in porsche-code/turbo-spec. Keep this header: it is
+# how a future engine update can tell a file we wrote from one of your own that
+# happens to call our actions.
+#
+# customer_bootstrap/push-session.yml — thin consumer shim
+# Copy this to .github/workflows/push-session.yml in your project repo.
+#
+# WHY A CONSUMER NEEDS THIS FILE: `turbo-spec push-session` dispatches this
+# workflow *in the repository the session belongs to*. Without it, the command
+# fails with workflow-not-found on exactly the repositories the outbound leg was
+# filed for — the original report (#1397) was a consumer repo, not turbo-spec.
+#
+# There is no `uses:` pin here and nothing to keep in step with an engine
+# release: the whole job is decode, verify, upload. It carries no engine version,
+# so a pin bump does not need to touch it.
+
+name: push-session
+
+# The outbound half of the laptop<->cloud round trip (#1397, REQ-HANDOFF-003).
+#
+# A resume restores session state from a RUN-SCOPED `session-state-<run_id>`
+# artifact, and only a run can create one. A laptop therefore cannot make a
+# locally-started session resumable by itself; `turbo-spec push-session` sends
+# the bytes here and this run re-emits them under the name shape the restore
+# scan already understands. Nothing about the restore path, the artifact name,
+# or the session format changes.
+#
+# The payload arrives gzip+base64 encoded as a dispatch input. Both inputs are
+# read through the step ENVIRONMENT and never substituted into the `run:` program
+# text, so a value carrying shell syntax is data rather than code — the same rule
+# the restore step documents for SCAN_CAP.
+
+on:
+  workflow_dispatch:
+    inputs:
+      session_id:
+        description: "Session id the payload belongs to. Verified against the decoded state before anything is uploaded."
+        required: true
+        type: string
+      session_state_b64:
+        description: "gzip+base64 of the session's `<id>.json`. Never the sibling `-trace.json`, which stays on the laptop."
+        required: true
+        type: string
+
+# Least privilege: this run creates an artifact and needs nothing else. In
+# particular it never writes to a branch — the session bytes must not enter git
+# history (REQ-HANDOFF-004).
+permissions:
+  contents: read
+
+jobs:
+  re-emit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decode, verify, and write the session state
+        env:
+          # DATA, not program text. Interpolating either value into the script
+          # below would let a crafted session id or payload run as shell.
+          SESSION_ID: ${{ inputs.session_id }}
+          SESSION_STATE_B64: ${{ inputs.session_state_b64 }}
+        run: |
+          set -euo pipefail
+
+          mkdir -p .sessions
+
+          # A unique scratch file, not a fixed /tmp path: two runs decoding at
+          # once would otherwise read each other's bytes. Found by executing this
+          # script in a parallel test rather than reading it.
+          decoded="$(mktemp)"
+          trap 'rm -f "$decoded"' EXIT
+
+          # Decode failures are fatal here rather than later: an artifact that
+          # exists but does not restore is worse than no artifact, because the
+          # resume scan would select it and stop looking.
+          if ! printf '%s' "$SESSION_STATE_B64" | base64 -d 2>/dev/null | gunzip > "$decoded" 2>/dev/null; then
+            echo "::error::session_state_b64 did not base64-decode and gunzip; nothing uploaded" >&2
+            exit 1
+          fi
+
+          # Identity is verified before the file is placed. A payload naming a
+          # different session would otherwise be uploaded under this run's id and
+          # then restored for the wrong session (REQ-HANDOFF-003).
+          DECODED="$decoded" python3 - <<'PY'
+          import json, os, pathlib, sys
+
+          requested = os.environ["SESSION_ID"]
+          raw = pathlib.Path(os.environ["DECODED"]).read_bytes()
+          try:
+              state = json.loads(raw)
+          except json.JSONDecodeError as exc:
+              print(f"::error::decoded payload is not JSON: {exc}", file=sys.stderr)
+              raise SystemExit(1)
+          found = str(state.get("session_id") or "")
+          if found != requested:
+              print(
+                  f"::error::payload identifies session {found!r}, dispatch requested {requested!r}"
+                  " — refusing to upload a mislabelled artifact",
+                  file=sys.stderr,
+              )
+              raise SystemExit(1)
+          pathlib.Path(".sessions", f"{requested}.json").write_bytes(raw)
+          print(f"wrote .sessions/{requested}.json ({len(raw)} bytes)")
+          PY
+
+      - name: Upload session state artifact
+        uses: actions/upload-artifact@v7
+        with:
+          # The name shape the resume restore step scans for. Run-scoped by
+          # construction, which is the whole reason this workflow exists.
+          name: session-state-${{ github.run_id }}
+          path: |
+            .sessions/*.json
+            !.sessions/*-trace.json
+          # REQUIRED: `.sessions` is a hidden directory and upload-artifact
+          # excludes hidden paths by default, so without this the glob matches
+          # nothing, `if-no-files-found: error` fires, and the handoff never
+          # produces the artifact it exists to produce. The engine's own upload
+          # (`.github/actions/run-engine/action.yml`) sets it for the same reason.
+          include-hidden-files: true
+          if-no-files-found: error
