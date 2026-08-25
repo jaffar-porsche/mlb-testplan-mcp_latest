@@ -1,0 +1,57 @@
+# Managed by the Turbo Spec onboarding app.
+#
+# Provisioned into your repository at .github/workflows/ai-readiness.yml, from onboarding/lib/caller-workflows.ts in
+# porsche-code/turbo-spec. Keep this header: it is how a future engine update can tell
+# a file we wrote from one of your own that happens to call our actions.
+#
+# AI Readiness caller: dispatches the built-in ai-readiness blueprint.
+name: AI Readiness
+
+on:
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+  actions: write
+  # The engine pulls the internal agent-sandbox image
+  # (ghcr.io/porsche-code/agent-sandbox) at runtime. A permissions block zeroes
+  # every unlisted scope, so without an explicit packages: read the job token
+  # cannot read the package and the sandbox image pull is denied.
+  packages: read
+  # Lets the built-in GITHUB_TOKEN authenticate the Copilot model call when no
+  # GH_COPILOT_TOKEN secret is set. A reusable workflow only receives the
+  # caller's permissions, so this must be granted here on the caller.
+  copilot-requests: write
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    # Must stay at or above the dispatched blueprint's settings.timeout_total (every
+    # built-in declares 350m). A cap BELOW the total inverts the whole design: GitHub
+    # SIGKILLs the job before the engine's own deadline fires, so the consumer sees a
+    # cancelled run with no stage-timeout error, no worker kill and no container
+    # force-removal. 360 is the ubuntu-latest hard maximum.
+    timeout-minutes: 360
+    steps:
+      - uses: porsche-code/turbo-spec/.github/actions/engine@v0.50.0
+        with:
+          # Empty blueprint + this label routes to the built-in ai-readiness
+          # blueprint via the engine's resolve-workflow.
+          labels: ai-readiness
+          engine-ref: v0.50.0
+          stream: "true"
+          TURBO_SPEC_APP_ID: ${{ secrets.TURBO_SPEC_APP_ID }}
+          TURBO_SPEC_APP_KEY: ${{ secrets.TURBO_SPEC_APP_KEY }}
+          TURBO_SPEC_GITHUB_PAT: ${{ secrets.TURBO_SPEC_GITHUB_PAT }}
+          TURBO_SPEC_NEWRELIC_INGEST_KEY: ${{ secrets.TURBO_SPEC_NEWRELIC_INGEST_KEY }}
+          # MCP secret bridge. A composite action cannot read the `secrets`
+          # context, so the caller serializes the whole inherited set here. At
+          # startup the engine refuses reserved platform credentials, unlinks the
+          # staged file, and holds the rest in memory for the run, substituting
+          # ONLY the ${VAR} names .turbo-spec/mcp.json references — none are
+          # written to the environment. Without this, a ${VAR} reference fails at
+          # config load before the pipeline starts, and marking the server
+          # optional does not help: substitution runs before requiredness.
+          mcp-secrets-json: ${{ toJSON(secrets) }}
