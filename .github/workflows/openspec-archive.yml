@@ -1,0 +1,88 @@
+# Managed by the Turbo Spec onboarding app.
+#
+# Provisioned into your repository at .github/workflows/openspec-archive.yml, from
+# customer_bootstrap/openspec-archive.yml in porsche-code/turbo-spec. Keep this header: it is
+# how a future engine update can tell a file we wrote from one of your own that
+# happens to call our actions.
+#
+# openspec-archive — archives the pull request's OpenSpec change when you enable auto-merge.
+#
+# Provisioned by turbo-spec onboarding. Finishing a pull request otherwise takes two actions: archive
+# the change, then merge. This makes the merge decision do both.
+#
+# WHAT HAPPENS. Pressing "Enable auto-merge" fires `auto_merge_enabled`. This shim calls turbo-spec's
+# reusable workflow, which runs `openspec archive <slug> --yes` — the CLI's own deterministic sync —
+# commits the synced specs and the archived change to your branch, and pushes. Your required checks
+# then re-run over that commit, and GitHub merges once they pass. The synced specs are therefore
+# validated BEFORE the merge, and your default branch never receives a commit no check has seen.
+#
+# OPT-IN. This file is provisioned to every onboarded repository, but it does nothing until you add the
+# secret below. Without it the run records that archiving is not configured, names the manual command, and
+# exits green — no red job for a repository that never asked for the feature. You archive by hand, exactly
+# as before this existed.
+#
+# TO TURN IT ON. Add a fine-grained personal access token scoped to THIS repository only, with Repository
+# permissions -> Contents: Read and write, as the repository secret TURBO_SPEC_AUTO_ARCHIVE.
+#
+# WHY A TOKEN AND NOT THE TURBO-SPEC APP. The App's credentials are organisation-level and every onboarded
+# repository can mint tokens with them, so granting it write access would give write access to every repository in
+# the installation. A repository-scoped token cannot. It also grants nothing new — your workflows already
+# have Contents: write via GITHUB_TOKEN — but GitHub emits no workflow events for GITHUB_TOKEN pushes, so
+# your required checks would never re-run over the archive commit. The separate token exists to make the
+# checks fire, not to add access.
+#
+# WHEN IT REFUSES, and it refuses rather than guessing:
+#   - a fork pull request, whose branch cannot be pushed to
+#   - the pull request itself adds more than one change, so the slug would be a guess.
+#     A change already active on the base branch does NOT count: resolution reads what THIS
+#     pull request adds, so someone else's un-archived change cannot block yours.
+#   - a non-zero exit from the CLI
+# Each refusal names the command to run by hand. A refusal is safe: your archive gate stays red, so
+# auto-merge does not complete. No active change at all is a clean no-op, not a failure.
+#
+# IF IT FAILS, IT TELLS YOU ON THE PULL REQUEST, and you do not need to touch auto-merge to retry. The run
+# posts one comment naming what it refused for and how to recover: push the fix (while auto-merge is on, a
+# push retries the archive automatically), or use GitHub's own "Re-run failed jobs" when there is nothing to
+# push — a rotated token, a transient error — or run the archive by hand. A later success rewrites that
+# comment as resolved. Without it, the only symptom is your archive gate staying red, which looks exactly
+# like a change nobody has archived yet.
+#
+# The `@` pin below is rewritten to the onboarded engine ref by pipeline wiring (`normalizeRefs`), the
+# same way ai.yml and comment-router.yml are. `@main` is the template placeholder, matching them.
+
+name: openspec-archive
+
+# `auto_merge_enabled` is the merge decision. `synchronize` is its RETRY: a push to a pull request that
+# ALREADY has auto-merge enabled re-attempts a failed archive, so fixing the cause is also the retry. A push
+# to a pull request without auto-merge archives nothing — see the job guard below.
+on:
+  pull_request:
+    types: [auto_merge_enabled, synchronize]
+
+# Restrictive default; the calling job below adds only what it needs.
+permissions:
+  contents: read
+
+# Serialize per pull request so two pushes cannot race two pushes to the same branch. Not cancelled
+# in-progress: a run stopped part-way through archive-commit-push is worse than one that waits, and GitHub
+# keeps only one pending run per group anyway. This belongs HERE rather than in the reusable workflow, where
+# `github.event.*` does not resolve at the concurrency level and would startup-fail the run.
+concurrency:
+  group: openspec-archive-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  archive:
+    # `synchronize` fires on every push to every open pull request, so without this it would archive on the
+    # first push of an implementation — long before you are ready. Requiring auto-merge to be already
+    # enabled keeps your merge decision the signal. One condition covers both event types, because
+    # `auto_merge_enabled` also carries a non-null `auto_merge`.
+    if: ${{ github.event.pull_request.auto_merge != null }}
+    uses: porsche-code/turbo-spec/.github/workflows/openspec-archive.yml@v0.50.0
+    # Needed for the failure comment on the pull request. A called workflow's token cannot exceed its
+    # caller's, so the grant has to be here as well as in the reusable workflow.
+    permissions:
+      contents: read
+      pull-requests: write
+    secrets:
+      TURBO_SPEC_AUTO_ARCHIVE: ${{ secrets.TURBO_SPEC_AUTO_ARCHIVE }}
