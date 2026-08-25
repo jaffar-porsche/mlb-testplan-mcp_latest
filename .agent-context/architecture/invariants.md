@@ -1,0 +1,8 @@
+# Invariants
+
+- Each MCP subproject (root mlb-testplan-mcp, jira-mcp, confluence-mcp) is built as an independent FastAPI + fastapi_mcp application with its own entrypoint, requirements file, Dockerfile, and port, and can be run and deployed standalone.
+- jira-mcp and confluence-mcp validate required credentials (JIRA_PAT / CONFLUENCE_PAT) at module import time in config.py by raising RuntimeError, so any code path that imports config (server startup, tests, tooling) fails immediately if the PAT env var is missing rather than failing lazily on first API call.
+- In jira-mcp and confluence-mcp, every FastAPI route handler body is wrapped in try/except Exception and converted into an HTTPException with an explanatory detail message; no route lets a raw exception propagate to the client.
+- All routers in jira-mcp and confluence-mcp are registered exclusively through a single routes/__init__.py::register_routes(app) function called from the service's mcp_server.py; there is no ad-hoc app.include_router() call elsewhere in the codebase.
+- Shared xRay v2 API interaction logic (error handling, response passthrough, pagination, field extraction) is centralized in utils/xray helper functions rather than reimplemented in each route/report-building function of the root server.
+- For MLB test-plan failure-analysis workflows, agents are constrained to use only the mlb-testplan MCP tools and are prohibited from invoking the separate Jira MCP, Confluence MCP, or GitLab MCP servers, keeping the three MCP services logically isolated at the agent-orchestration layer despite being co-located in one repository.
