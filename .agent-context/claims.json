@@ -1,0 +1,904 @@
+[
+  {
+    "index": 0,
+    "statement": "A FastAPI-based xRay test-plan MCP server that proxies to the xRay v2 API to build a FAIL test report with KPM IDs, handling both Test Plan and single Test issue types.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "server.py",
+        "excerpt": "xRay FAIL Report \u2014 single endpoint that retrieves all FAIL test results with KPM IDs."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "mlb-testplan-mcp (root server)",
+      "path": ".",
+      "purpose": "A FastAPI-based xRay test-plan MCP server that proxies to the xRay v2 API to build a FAIL test report with KPM IDs, handling both Test Plan and single Test issue types.",
+      "anchor": {
+        "file_path": "server.py",
+        "excerpt": "xRay FAIL Report \u2014 single endpoint that retrieves all FAIL test results with KPM IDs."
+      },
+      "public_api": [],
+      "external_deps": [
+        "fastapi",
+        "fastapi_mcp",
+        "httpx",
+        "dotenv",
+        "bs4",
+        "pandas"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 1,
+    "statement": "Entry point for a Jira MCP server (FastAPI + FastApiMCP) that registers route modules for issue management, hierarchy traversal, and sprint operations.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/mcp_server.py",
+        "excerpt": "A Model Context Protocol server for Jira integration.\nProvides issue management, hierarchy traversal, sprint management, and more."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "jira-mcp",
+      "path": "jira-mcp",
+      "purpose": "Entry point for a Jira MCP server (FastAPI + FastApiMCP) that registers route modules for issue management, hierarchy traversal, and sprint operations.",
+      "anchor": {
+        "file_path": "jira-mcp/mcp_server.py",
+        "excerpt": "A Model Context Protocol server for Jira integration.\nProvides issue management, hierarchy traversal, sprint management, and more."
+      },
+      "public_api": [
+        "app"
+      ],
+      "external_deps": [
+        "fastapi",
+        "fastapi_mcp"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 2,
+    "statement": "Defines FastAPI routes for Jira issue CRUD, search, hierarchy and roadmap endpoints, built on top of the jira client and hierarchy utilities.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "Issue CRUD operations, hierarchy traversal, and roadmap endpoints."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "jira-mcp-routes",
+      "path": "jira-mcp/routes",
+      "purpose": "Defines FastAPI routes for Jira issue CRUD, search, hierarchy and roadmap endpoints, built on top of the jira client and hierarchy utilities.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "Issue CRUD operations, hierarchy traversal, and roadmap endpoints."
+      },
+      "public_api": [
+        "create_issue",
+        "get_issue",
+        "update_issue",
+        "search_issues",
+        "get_issue_hierarchy",
+        "get_issue_roadmap"
+      ],
+      "external_deps": [
+        "fastapi"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 3,
+    "statement": "Provides utility functions to recursively traverse Jira Epic/Feature/Story issue hierarchies and build markdown hierarchy trees and PI-based roadmaps.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/utils/hierarchy.py",
+        "excerpt": "Hierarchy traversal utilities for Epic/Feature/Story trees."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "jira-mcp-utils",
+      "path": "jira-mcp/utils",
+      "purpose": "Provides utility functions to recursively traverse Jira Epic/Feature/Story issue hierarchies and build markdown hierarchy trees and PI-based roadmaps.",
+      "anchor": {
+        "file_path": "jira-mcp/utils/hierarchy.py",
+        "excerpt": "Hierarchy traversal utilities for Epic/Feature/Story trees."
+      },
+      "public_api": [
+        "HierarchyStats",
+        "get_issue_links",
+        "is_closed_status",
+        "get_child_issues",
+        "build_hierarchy_markdown",
+        "get_feature_with_versions",
+        "build_roadmap_markdown"
+      ],
+      "external_deps": [],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 4,
+    "statement": "Pytest test suite verifying that all Jira MCP route modules import correctly and expose their expected endpoint paths.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/tests/test_routes.py",
+        "excerpt": "Test all route modules can be imported."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "jira-mcp-tests",
+      "path": "jira-mcp/tests",
+      "purpose": "Pytest test suite verifying that all Jira MCP route modules import correctly and expose their expected endpoint paths.",
+      "anchor": {
+        "file_path": "jira-mcp/tests/test_routes.py",
+        "excerpt": "Test all route modules can be imported."
+      },
+      "public_api": [
+        "test_routes_module_imports",
+        "test_issues_router_has_routes"
+      ],
+      "external_deps": [
+        "pytest"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 5,
+    "statement": "Entry point for a Confluence MCP server (FastAPI + FastApiMCP) that registers route modules for page management, search, hierarchy traversal, and comments.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/mcp_server.py",
+        "excerpt": "A Model Context Protocol server for Confluence integration.\nProvides page management, search, hierarchy traversal, comments, and more."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "confluence-mcp",
+      "path": "confluence-mcp",
+      "purpose": "Entry point for a Confluence MCP server (FastAPI + FastApiMCP) that registers route modules for page management, search, hierarchy traversal, and comments.",
+      "anchor": {
+        "file_path": "confluence-mcp/mcp_server.py",
+        "excerpt": "A Model Context Protocol server for Confluence integration.\nProvides page management, search, hierarchy traversal, comments, and more."
+      },
+      "public_api": [
+        "app"
+      ],
+      "external_deps": [
+        "fastapi",
+        "fastapi_mcp"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 6,
+    "statement": "Implements Confluence page CRUD endpoints (create, get, update, move, delete, including cascading delete of descendant pages) via the confluence client.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/routes/pages.py",
+        "excerpt": "Page CRUD operations for Confluence."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "confluence-mcp-routes",
+      "path": "confluence-mcp/routes",
+      "purpose": "Implements Confluence page CRUD endpoints (create, get, update, move, delete, including cascading delete of descendant pages) via the confluence client.",
+      "anchor": {
+        "file_path": "confluence-mcp/routes/pages.py",
+        "excerpt": "Page CRUD operations for Confluence."
+      },
+      "public_api": [
+        "create_page",
+        "create_page_simple",
+        "get_page",
+        "update_page",
+        "move_page",
+        "delete_page"
+      ],
+      "external_deps": [
+        "fastapi"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 7,
+    "statement": "Provides client integration templates and configs (Claude Desktop config, VS Code/Copilot prompts, Postman collection, HTTP request files) for connecting external MCP clients to the Confluence MCP server.",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/integration/claude/claude_desktop_config.json.template",
+        "excerpt": "\"confluence\": {\n      \"command\": \"uvicorn\",\n      \"args\": [\n        \"mcp_server:app\","
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "confluence-mcp-integration",
+      "path": "confluence-mcp/integration",
+      "purpose": "Provides client integration templates and configs (Claude Desktop config, VS Code/Copilot prompts, Postman collection, HTTP request files) for connecting external MCP clients to the Confluence MCP server.",
+      "anchor": {
+        "file_path": "confluence-mcp/integration/claude/claude_desktop_config.json.template",
+        "excerpt": "\"confluence\": {\n      \"command\": \"uvicorn\",\n      \"args\": [\n        \"mcp_server:app\","
+      },
+      "public_api": [],
+      "external_deps": [],
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 8,
+    "statement": "Pytest test suite covering Confluence MCP endpoints, including health checks, using mocked Confluence client responses.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/tests/test_endpoints.py",
+        "excerpt": "Tests for Confluence MCP endpoints."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "confluence-mcp-tests",
+      "path": "confluence-mcp/tests",
+      "purpose": "Pytest test suite covering Confluence MCP endpoints, including health checks, using mocked Confluence client responses.",
+      "anchor": {
+        "file_path": "confluence-mcp/tests/test_endpoints.py",
+        "excerpt": "Tests for Confluence MCP endpoints."
+      },
+      "public_api": [
+        "TestHealthEndpoints"
+      ],
+      "external_deps": [
+        "pytest"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 9,
+    "statement": "Shared helper functions for proxying and interpreting xRay v2 API responses (error handling, response passthrough, test run/plan/exec retrieval, and payload field extraction) used across MCP routes.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "module",
+    "evidence": [
+      {
+        "file_path": "utils/xray",
+        "excerpt": "Shared xRay route helper functions."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "name": "utils",
+      "path": "utils",
+      "purpose": "Shared helper functions for proxying and interpreting xRay v2 API responses (error handling, response passthrough, test run/plan/exec retrieval, and payload field extraction) used across MCP routes.",
+      "anchor": {
+        "file_path": "utils/xray",
+        "excerpt": "Shared xRay route helper functions."
+      },
+      "public_api": [
+        "raise_for_xray",
+        "proxy_response",
+        "request_xray",
+        "get_xray",
+        "get_testruns",
+        "get_testplan_tests",
+        "get_testexec_tests",
+        "build_step_fields",
+        "extract_items",
+        "get_jira_issue_metadata"
+      ],
+      "external_deps": [
+        "fastapi"
+      ],
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 10,
+    "statement": "Each MCP service (jira-mcp, confluence-mcp) organizes FastAPI endpoints into per-domain modules under a routes/ package, with a routes/__init__.py exposing a register_routes(app) function that includes each router.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/__init__.py",
+        "excerpt": "def register_routes(app):\n    \"\"\"Register all route modules with the FastAPI app.\"\"\"\n    app.include_router(issues_router)"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "structure",
+      "rule": "Each MCP service (jira-mcp, confluence-mcp) organizes FastAPI endpoints into per-domain modules under a routes/ package, with a routes/__init__.py exposing a register_routes(app) function that includes each router.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/__init__.py",
+        "excerpt": "def register_routes(app):\n    \"\"\"Register all route modules with the FastAPI app.\"\"\"\n    app.include_router(issues_router)"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 11,
+    "statement": "Route handler bodies wrap their logic in try/except Exception blocks and convert failures into fastapi.HTTPException with an explanatory detail message.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "except Exception as e:\n        raise HTTPException(status_code=500, detail=f\"Failed to create issue: {e}\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "style",
+      "rule": "Route handler bodies wrap their logic in try/except Exception blocks and convert failures into fastapi.HTTPException with an explanatory detail message.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "except Exception as e:\n        raise HTTPException(status_code=500, detail=f\"Failed to create issue: {e}\")"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 12,
+    "statement": "Each route function is decorated with @router.<method>(path, summary=..., operation_id=...) and includes a docstring describing parameters, matching the FastAPI-MCP tool-description convention.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "@router.post(\"/create_issue\", summary=\"Create a new Jira issue\", operation_id=\"create_issue\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "style",
+      "rule": "Each route function is decorated with @router.<method>(path, summary=..., operation_id=...) and includes a docstring describing parameters, matching the FastAPI-MCP tool-description convention.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "@router.post(\"/create_issue\", summary=\"Create a new Jira issue\", operation_id=\"create_issue\")"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 13,
+    "statement": "Module-level private helper functions used only within a route file are prefixed with a single underscore (e.g. _find_epic_link_field, _resolve_version_names).",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "def _find_epic_link_field():"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "naming",
+      "rule": "Module-level private helper functions used only within a route file are prefixed with a single underscore (e.g. _find_epic_link_field, _resolve_version_names).",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "def _find_epic_link_field():"
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 14,
+    "statement": "Each source file starts with a module-level docstring summarizing its purpose, followed by stdlib imports, then third-party imports, then local imports.",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "\"\"\"Issue CRUD operations, hierarchy traversal, and roadmap endpoints.\"\"\"\nimport logging\nfrom typing import List, Optional"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "structure",
+      "rule": "Each source file starts with a module-level docstring summarizing its purpose, followed by stdlib imports, then third-party imports, then local imports.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "\"\"\"Issue CRUD operations, hierarchy traversal, and roadmap endpoints.\"\"\"\nimport logging\nfrom typing import List, Optional"
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 15,
+    "statement": "Tests are organized into pytest classes grouped by endpoint area (e.g. TestHealthEndpoints, TestPageEndpoints) using a shared 'client' fixture and mocked service clients (e.g. mock_confluence).",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/tests/test_endpoints.py",
+        "excerpt": "class TestPageEndpoints:\n    \"\"\"Tests for page-related endpoints.\"\"\""
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "testing",
+      "rule": "Tests are organized into pytest classes grouped by endpoint area (e.g. TestHealthEndpoints, TestPageEndpoints) using a shared 'client' fixture and mocked service clients (e.g. mock_confluence).",
+      "anchor": {
+        "file_path": "confluence-mcp/tests/test_endpoints.py",
+        "excerpt": "class TestPageEndpoints:\n    \"\"\"Tests for page-related endpoints.\"\"\""
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 16,
+    "statement": "Each module obtains its own logger via logger = logging.getLogger(__name__) immediately after imports.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "convention",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/routes/pages.py",
+        "excerpt": "logger = logging.getLogger(__name__)"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "category": "naming",
+      "rule": "Each module obtains its own logger via logger = logging.getLogger(__name__) immediately after imports.",
+      "anchor": {
+        "file_path": "confluence-mcp/routes/pages.py",
+        "excerpt": "logger = logging.getLogger(__name__)"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 17,
+    "statement": "Each MCP subproject (root mlb-testplan-mcp, jira-mcp, confluence-mcp) is built as an independent FastAPI + fastapi_mcp application with its own entrypoint, requirements file, Dockerfile, and port, and can be run and deployed standalone.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "invariant",
+    "evidence": [
+      {
+        "file_path": "docker-compose.yml",
+        "excerpt": ""
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Each MCP subproject (root mlb-testplan-mcp, jira-mcp, confluence-mcp) is built as an independent FastAPI + fastapi_mcp application with its own entrypoint, requirements file, Dockerfile, and port, and can be run and deployed standalone.",
+      "anchor": {
+        "file_path": "docker-compose.yml",
+        "excerpt": ""
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 18,
+    "statement": "jira-mcp and confluence-mcp validate required credentials (JIRA_PAT / CONFLUENCE_PAT) at module import time in config.py by raising RuntimeError, so any code path that imports config (server startup, tests, tooling) fails immediately if the PAT env var is missing rather than failing lazily on first API call.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "invariant",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/config.py",
+        "excerpt": "if not JIRA_PAT:\n    raise RuntimeError(\"JIRA_PAT environment variable is not set\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "jira-mcp and confluence-mcp validate required credentials (JIRA_PAT / CONFLUENCE_PAT) at module import time in config.py by raising RuntimeError, so any code path that imports config (server startup, tests, tooling) fails immediately if the PAT env var is missing rather than failing lazily on first API call.",
+      "anchor": {
+        "file_path": "jira-mcp/config.py",
+        "excerpt": "if not JIRA_PAT:\n    raise RuntimeError(\"JIRA_PAT environment variable is not set\")"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 19,
+    "statement": "In jira-mcp and confluence-mcp, every FastAPI route handler body is wrapped in try/except Exception and converted into an HTTPException with an explanatory detail message; no route lets a raw exception propagate to the client.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "invariant",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "except Exception as e:\n        raise HTTPException(status_code=500, detail=f\"Failed to create issue: {e}\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "In jira-mcp and confluence-mcp, every FastAPI route handler body is wrapped in try/except Exception and converted into an HTTPException with an explanatory detail message; no route lets a raw exception propagate to the client.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "except Exception as e:\n        raise HTTPException(status_code=500, detail=f\"Failed to create issue: {e}\")"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 20,
+    "statement": "All routers in jira-mcp and confluence-mcp are registered exclusively through a single routes/__init__.py::register_routes(app) function called from the service's mcp_server.py; there is no ad-hoc app.include_router() call elsewhere in the codebase.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "invariant",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/__init__.py",
+        "excerpt": "def register_routes(app):\n    \"\"\"Register all route modules with the FastAPI app.\"\"\"\n    app.include_router(issues_router)"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "All routers in jira-mcp and confluence-mcp are registered exclusively through a single routes/__init__.py::register_routes(app) function called from the service's mcp_server.py; there is no ad-hoc app.include_router() call elsewhere in the codebase.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/__init__.py",
+        "excerpt": "def register_routes(app):\n    \"\"\"Register all route modules with the FastAPI app.\"\"\"\n    app.include_router(issues_router)"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 21,
+    "statement": "Shared xRay v2 API interaction logic (error handling, response passthrough, pagination, field extraction) is centralized in utils/xray helper functions rather than reimplemented in each route/report-building function of the root server.",
+    "confidence": "medium",
+    "source": "synthesizer",
+    "kind": "invariant",
+    "evidence": [
+      {
+        "file_path": "utils/xray",
+        "excerpt": "Shared xRay route helper functions."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Shared xRay v2 API interaction logic (error handling, response passthrough, pagination, field extraction) is centralized in utils/xray helper functions rather than reimplemented in each route/report-building function of the root server.",
+      "anchor": {
+        "file_path": "utils/xray",
+        "excerpt": "Shared xRay route helper functions."
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 22,
+    "statement": "For MLB test-plan failure-analysis workflows, agents are constrained to use only the mlb-testplan MCP tools and are prohibited from invoking the separate Jira MCP, Confluence MCP, or GitLab MCP servers, keeping the three MCP services logically isolated at the agent-orchestration layer despite being co-located in one repository.",
+    "confidence": "medium",
+    "source": "synthesizer",
+    "kind": "invariant",
+    "evidence": [
+      {
+        "file_path": ".github/README.md",
+        "excerpt": ""
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "For MLB test-plan failure-analysis workflows, agents are constrained to use only the mlb-testplan MCP tools and are prohibited from invoking the separate Jira MCP, Confluence MCP, or GitLab MCP servers, keeping the three MCP services logically isolated at the agent-orchestration layer despite being co-located in one repository.",
+      "anchor": {
+        "file_path": ".github/README.md",
+        "excerpt": ""
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 23,
+    "statement": "jira-mcp and confluence-mcp raise RuntimeError at module import time if JIRA_PAT/CONFLUENCE_PAT env vars are unset, so simply importing config.py (e.g. in an unrelated test or tool) crashes before any server code runs.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "gotcha",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/config.py",
+        "excerpt": "if not JIRA_PAT:\n    raise RuntimeError(\"JIRA_PAT environment variable is not set\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "jira-mcp and confluence-mcp raise RuntimeError at module import time if JIRA_PAT/CONFLUENCE_PAT env vars are unset, so simply importing config.py (e.g. in an unrelated test or tool) crashes before any server code runs.",
+      "anchor": {
+        "file_path": "jira-mcp/config.py",
+        "excerpt": "if not JIRA_PAT:\n    raise RuntimeError(\"JIRA_PAT environment variable is not set\")"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 24,
+    "statement": "config.SPRINT_FIELD_ID is a mutable module-level global that discover_sprint_field() mutates as a cache; since it's shared process-wide, concurrent requests hitting different Jira instances (or test isolation) can read a stale/incorrect field ID unless explicitly reset.",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "gotcha",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/utils/sprint.py",
+        "excerpt": "if config.SPRINT_FIELD_ID is not None:\n        return config.SPRINT_FIELD_ID"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "config.SPRINT_FIELD_ID is a mutable module-level global that discover_sprint_field() mutates as a cache; since it's shared process-wide, concurrent requests hitting different Jira instances (or test isolation) can read a stale/incorrect field ID unless explicitly reset.",
+      "anchor": {
+        "file_path": "jira-mcp/utils/sprint.py",
+        "excerpt": "if config.SPRINT_FIELD_ID is not None:\n        return config.SPRINT_FIELD_ID"
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 25,
+    "statement": "server.py's parallel fetch helpers (ThreadPoolExecutor + as_completed) swallow all per-task exceptions with bare `except Exception: continue` or default-value fallback, silently hiding network/auth failures as empty results rather than surfacing them.",
+    "confidence": "high",
+    "source": "explorer",
+    "kind": "gotcha",
+    "evidence": [
+      {
+        "file_path": "server.py",
+        "excerpt": "except Exception:\n                continue"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "server.py's parallel fetch helpers (ThreadPoolExecutor + as_completed) swallow all per-task exceptions with bare `except Exception: continue` or default-value fallback, silently hiding network/auth failures as empty results rather than surfacing them.",
+      "anchor": {
+        "file_path": "server.py",
+        "excerpt": "except Exception:\n                continue"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 26,
+    "statement": "server.py hardcodes a default corporate proxy (http://http-proxy.porsche.org:3133) as a fallback for HTTP_PROXY, so requests silently route through that proxy in environments where it isn't reachable/relevant, instead of failing fast or defaulting to no proxy.",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "gotcha",
+    "evidence": [
+      {
+        "file_path": "server.py",
+        "excerpt": "PROXY = os.getenv(\"HTTP_PROXY\", \"http://http-proxy.porsche.org:3133\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "server.py hardcodes a default corporate proxy (http://http-proxy.porsche.org:3133) as a fallback for HTTP_PROXY, so requests silently route through that proxy in environments where it isn't reachable/relevant, instead of failing fast or defaulting to no proxy.",
+      "anchor": {
+        "file_path": "server.py",
+        "excerpt": "PROXY = os.getenv(\"HTTP_PROXY\", \"http://http-proxy.porsche.org:3133\")"
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 27,
+    "statement": "confluence-mcp/config.py prints connection/proxy info via bare print() at import time instead of using the logging module, so these startup diagnostics bypass log level filtering and can leak into stdout of any process that imports config.",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "gotcha",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/config.py",
+        "excerpt": "print(f\"[confluence-mcp] Confluence Base URL: {CONFLUENCE_BASE_URL}\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "confluence-mcp/config.py prints connection/proxy info via bare print() at import time instead of using the logging module, so these startup diagnostics bypass log level filtering and can leak into stdout of any process that imports config.",
+      "anchor": {
+        "file_path": "confluence-mcp/config.py",
+        "excerpt": "print(f\"[confluence-mcp] Confluence Base URL: {CONFLUENCE_BASE_URL}\")"
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 28,
+    "statement": "Avoid catching bare 'except Exception' broadly around large blocks of logic instead of catching specific exception types, which can mask unrelated errors.",
+    "confidence": "medium",
+    "source": "explorer",
+    "kind": "anti_pattern",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "except Exception:\n        pass\n    return 'customfield_10000'  # Fallback"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Avoid catching bare 'except Exception' broadly around large blocks of logic instead of catching specific exception types, which can mask unrelated errors.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/issues.py",
+        "excerpt": "except Exception:\n        pass\n    return 'customfield_10000'  # Fallback"
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 29,
+    "statement": "Avoid embedding secrets/config defaults such as internal proxy URLs directly in source as fallback values for environment variables.",
+    "confidence": "low",
+    "source": "explorer",
+    "kind": "anti_pattern",
+    "evidence": [
+      {
+        "file_path": "server.py",
+        "excerpt": "PROXY = os.getenv(\"HTTP_PROXY\", \"http://http-proxy.porsche.org:3133\")"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Avoid embedding secrets/config defaults such as internal proxy URLs directly in source as fallback values for environment variables.",
+      "anchor": {
+        "file_path": "server.py",
+        "excerpt": "PROXY = os.getenv(\"HTTP_PROXY\", \"http://http-proxy.porsche.org:3133\")"
+      },
+      "confidence": "low"
+    }
+  },
+  {
+    "index": 30,
+    "statement": "Router-per-domain pattern: each MCP service (jira-mcp, confluence-mcp) splits its FastAPI endpoints into per-domain modules under routes/ (e.g. issues.py, pages.py), each exposing its own APIRouter, aggregated by a single register_routes(app) entrypoint.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "architectural_pattern",
+    "evidence": [
+      {
+        "file_path": "jira-mcp/routes/__init__.py",
+        "excerpt": "def register_routes(app):\n    \"\"\"Register all route modules with the FastAPI app.\"\"\"\n    app.include_router(issues_router)"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Router-per-domain pattern: each MCP service (jira-mcp, confluence-mcp) splits its FastAPI endpoints into per-domain modules under routes/ (e.g. issues.py, pages.py), each exposing its own APIRouter, aggregated by a single register_routes(app) entrypoint.",
+      "anchor": {
+        "file_path": "jira-mcp/routes/__init__.py",
+        "excerpt": "def register_routes(app):\n    \"\"\"Register all route modules with the FastAPI app.\"\"\"\n    app.include_router(issues_router)"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 31,
+    "statement": "Multi-service monorepo architecture: three independently deployable FastAPI+fastapi_mcp servers (root xRay test-plan server, jira-mcp, confluence-mcp) live side-by-side in one repository, each with its own Dockerfile, composed together via a top-level docker-compose.yml.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "architectural_pattern",
+    "evidence": [
+      {
+        "file_path": "docker-compose.yml",
+        "excerpt": "services:\n  jira-mcp:\n    build:\n      context: .\n      dockerfile: jira-mcp/Dockerfile"
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Multi-service monorepo architecture: three independently deployable FastAPI+fastapi_mcp servers (root xRay test-plan server, jira-mcp, confluence-mcp) live side-by-side in one repository, each with its own Dockerfile, composed together via a top-level docker-compose.yml.",
+      "anchor": {
+        "file_path": "docker-compose.yml",
+        "excerpt": "services:\n  jira-mcp:\n    build:\n      context: .\n      dockerfile: jira-mcp/Dockerfile"
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 32,
+    "statement": "Shared-utility-module pattern: cross-cutting integration logic for an external API (xRay) is factored out into a dedicated utils/ package consumed by route/report code, rather than duplicated per endpoint.",
+    "confidence": "medium",
+    "source": "synthesizer",
+    "kind": "architectural_pattern",
+    "evidence": [
+      {
+        "file_path": "utils/xray",
+        "excerpt": "Shared xRay route helper functions."
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Shared-utility-module pattern: cross-cutting integration logic for an external API (xRay) is factored out into a dedicated utils/ package consumed by route/report code, rather than duplicated per endpoint.",
+      "anchor": {
+        "file_path": "utils/xray",
+        "excerpt": "Shared xRay route helper functions."
+      },
+      "confidence": "medium"
+    }
+  },
+  {
+    "index": 33,
+    "statement": "Test-class-per-endpoint-area pattern: pytest suites group related endpoint tests into classes (e.g. TestHealthEndpoints, TestPageEndpoints) sharing a common 'client' fixture and mocked external-service client, isolating tests from real Jira/Confluence calls.",
+    "confidence": "high",
+    "source": "synthesizer",
+    "kind": "architectural_pattern",
+    "evidence": [
+      {
+        "file_path": "confluence-mcp/tests/test_endpoints.py",
+        "excerpt": "class TestPageEndpoints:\n    \"\"\"Tests for page-related endpoints.\"\"\""
+      }
+    ],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "Test-class-per-endpoint-area pattern: pytest suites group related endpoint tests into classes (e.g. TestHealthEndpoints, TestPageEndpoints) sharing a common 'client' fixture and mocked external-service client, isolating tests from real Jira/Confluence calls.",
+      "anchor": {
+        "file_path": "confluence-mcp/tests/test_endpoints.py",
+        "excerpt": "class TestPageEndpoints:\n    \"\"\"Tests for page-related endpoints.\"\"\""
+      },
+      "confidence": "high"
+    }
+  },
+  {
+    "index": 34,
+    "statement": "The mlb-testplan MCP root server exposes an MCP tool interface started via `python server.py`, listening on http://localhost:8080 with docs at /docs and a dashboard at /dashboard.",
+    "confidence": "medium",
+    "source": "prior_doc",
+    "kind": "prior_doc_fact",
+    "evidence": [],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "The mlb-testplan MCP root server exposes an MCP tool interface started via `python server.py`, listening on http://localhost:8080 with docs at /docs and a dashboard at /dashboard.",
+      "confidence": "medium",
+      "doc_source": ".github/README.md"
+    }
+  },
+  {
+    "index": 41,
+    "statement": "The confluence-mcp subproject connects to Confluence via a PAT, defaults to base URL https://api.skyway.porsche.com/confluence, and runs its own MCP server (default port 8001) supporting docker-compose or ./start-mcp.sh startup.",
+    "confidence": "medium",
+    "source": "prior_doc",
+    "kind": "prior_doc_fact",
+    "evidence": [],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "The confluence-mcp subproject connects to Confluence via a PAT, defaults to base URL https://api.skyway.porsche.com/confluence, and runs its own MCP server (default port 8001) supporting docker-compose or ./start-mcp.sh startup.",
+      "confidence": "medium",
+      "doc_source": "confluence-mcp/README.md"
+    }
+  },
+  {
+    "index": 42,
+    "statement": "confluence-mcp exposes REST-style endpoints (e.g. /create_page, /page/{page_id}, /search, /search_cql, /spaces) rather than only MCP tool calls, and documents them individually in its README.",
+    "confidence": "medium",
+    "source": "prior_doc",
+    "kind": "prior_doc_fact",
+    "evidence": [],
+    "verified_by_critic": true,
+    "payload": {
+      "statement": "confluence-mcp exposes REST-style endpoints (e.g. /create_page, /page/{page_id}, /search, /search_cql, /spaces) rather than only MCP tool calls, and documents them individually in its README.",
+      "confidence": "medium",
+      "doc_source": "confluence-mcp/README.md"
+    }
+  }
+]

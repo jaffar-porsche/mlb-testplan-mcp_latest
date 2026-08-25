@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0.0",
+  "generator": "ai-readiness",
+  "claims_total": 46,
+  "claims_verified": 37,
+  "critic_dropped": 9,
+  "critic_dropped_unusable": 0
+}
