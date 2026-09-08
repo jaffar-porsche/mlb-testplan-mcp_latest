@@ -27,10 +27,10 @@
 
     /* ── Design tokens (Porsche Design System v3) ── */
     :root {
-      --pds-color-primary:        #010205;
-      --pds-color-background:     #f2f2f2;
+      --pds-color-primary:        #1d2d3f;
+      --pds-color-background:     #eaeff3;
       --pds-color-surface:        #ffffff;
-      --pds-color-brand:          #d5001c;
+      --pds-color-brand:          #2f6690;
       --pds-color-neutral-1:      #626669;
       --pds-color-neutral-2:      #c9cacb;
       --pds-color-neutral-3:      #e3e4e5;
@@ -39,7 +39,7 @@
       --pds-color-warning:        #ff9b00;
       --pds-color-error:          #d5001c;
       --pds-color-notification:   #0061bd;
-      --pds-border-radius:        0px;
+      --pds-border-radius:        6px;
       --pds-border-radius-sm:     4px;
       --pds-shadow-low:           0 2px 8px rgba(1,2,5,.08), 0 0 1px rgba(1,2,5,.06);
       --pds-shadow-medium:        0 8px 24px rgba(1,2,5,.10), 0 0 1px rgba(1,2,5,.06);
@@ -58,8 +58,8 @@
 
     /* ── Global nav header (Porsche-style) ── */
     .pds-header {
-      background: var(--pds-color-primary);
-      color: #fff;
+      background: #ffffff;
+      color: var(--pds-color-primary);
       padding: 0 48px;
       height: 64px;
       display: flex;
@@ -68,7 +68,8 @@
       position: sticky;
       top: 0;
       z-index: 100;
-      box-shadow: 0 1px 0 rgba(255,255,255,.08);
+      border-bottom: 1px solid var(--pds-color-neutral-3);
+      box-shadow: 0 1px 4px rgba(0,0,0,.04);
     }
     .pds-header__logo {
       display: flex;
@@ -81,32 +82,32 @@
       width: auto;
     }
     .pds-header__wordmark {
-      font-family: '911Porscha', sans-serif;
-      font-size: 1.5rem;
-      font-weight: normal;
-      letter-spacing: 3px;
-      text-transform: uppercase;
-      color: #fff;
+      font-family: 'Porsche Next', 'Arial Narrow', Arial, sans-serif;
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: normal;
+      text-transform: none;
+      color: var(--pds-color-brand);
       line-height: 1;
     }
     .pds-header__wordmark-sub {
       font-family: 'Porsche Next', 'Arial Narrow', Arial, sans-serif;
-      font-size: 1.1rem;
-      font-weight: 300;
-      letter-spacing: 5px;
-      color: rgba(255,255,255,0.85);
+      font-size: 1.15rem;
+      font-weight: 700;
+      letter-spacing: normal;
+      color: var(--pds-color-brand);
     }
     .pds-header__divider {
       width: 1px;
       height: 20px;
-      background: rgba(255,255,255,.25);
+      background: var(--pds-color-neutral-3);
     }
     .pds-header__title {
       font-size: 0.75rem;
       font-weight: 400;
       letter-spacing: 1px;
       text-transform: uppercase;
-      color: rgba(255,255,255,.7);
+      color: var(--pds-color-neutral-1);
     }
     .pds-header__badge {
       font-size: 0.65rem;
@@ -114,9 +115,9 @@
       letter-spacing: 1.5px;
       text-transform: uppercase;
       color: var(--pds-color-brand);
-      background: rgba(213,0,28,.12);
+      background: rgba(47,102,144,.12);
       padding: 4px 10px;
-      border: 1px solid rgba(213,0,28,.3);
+      border: 1px solid rgba(47,102,144,.3);
     }
 
     /* ── Page wrapper ── */
@@ -237,15 +238,15 @@
     .btn:not(:disabled):hover { transform: translateY(-1px); }
     .btn:not(:disabled):active { transform: translateY(0) scale(.99); }
 
-    /* Primary — solid black */
+    /* Primary — teal-blue */
     .btn-primary {
-      background: var(--pds-color-primary);
+      background: var(--pds-color-brand);
       color: #fff;
-      border-color: var(--pds-color-primary);
+      border-color: var(--pds-color-brand);
     }
     .btn-primary:not(:disabled):hover {
-      background: #2a2b2e;
-      box-shadow: 0 4px 16px rgba(1,2,5,.22);
+      background: #244f70;
+      box-shadow: 0 4px 16px rgba(47,102,144,.30);
     }
 
     /* Brand — Porsche red */
@@ -259,14 +260,14 @@
       box-shadow: 0 4px 16px rgba(213,0,28,.30);
     }
 
-    /* Secondary — outlined */
+    /* Secondary — outlined teal-blue */
     .btn-secondary {
       background: transparent;
-      color: var(--pds-color-primary);
-      border-color: var(--pds-color-primary);
+      color: var(--pds-color-brand);
+      border-color: var(--pds-color-brand);
     }
     .btn-secondary:not(:disabled):hover {
-      background: var(--pds-color-primary);
+      background: var(--pds-color-brand);
       color: #fff;
     }
 
@@ -470,11 +471,11 @@
 <!-- ── Porsche Header ── -->
 <header class="pds-header">
   <a class="pds-header__logo" href="#">
-    <img class="pds-header__crest"
+    <img class="pds-header__crest" style="display:none;"
          src="https://cdn.ui.porsche.com/porsche-design-system/crest/porsche-crest.2245c45@2x.webp"
          alt="Porsche" />
     <div class="pds-header__divider"></div>
-    <span class="pds-header__wordmark">PORSCHE <span class="pds-header__wordmark-sub">Engineering</span></span>
+    <span class="pds-header__wordmark">Porsche <span class="pds-header__wordmark-sub">Engineering</span></span>
     <div class="pds-header__divider"></div>
     <span class="pds-header__title">MLBEVO · Testing SOP Tools</span>
   </a>
@@ -496,12 +497,14 @@
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 1l9 5-9 5V1z" fill="currentColor"/></svg>
       Analyze
     </button>
+    <button class="btn btn-secondary" id="btnAiPrompt" onclick="runAiPrompt()" style="border-color:#8b5cf6;color:#8b5cf6;">Ask AI</button>
     <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
     <button class="btn btn-secondary" id="btnPriority" onclick="openPriorityModal()">Priority</button>
     <button class="btn btn-secondary" id="btnFailAll" onclick="openFailAllModal()">FAIL All</button>
     <button class="btn btn-secondary" id="btnBlockedAll" onclick="openBlockedAllModal()">BLOCKED All</button>
     <button class="btn btn-secondary" id="btnCloneConfluence" onclick="cloneConfluence()">Clone Confluence</button>
   </div>
+  <pre id="aiPromptResult" style="display:none;white-space:pre-wrap;max-height:420px;overflow:auto;margin-top:12px;background:#0d1117;color:#c9d1d9;padding:12px;border-radius:8px;font-size:0.85rem;"></pre>
 </div>
 
 <!-- ── FAIL All Modal ── -->
@@ -784,6 +787,31 @@
   const BASE = 'http://127.0.0.1:8080';
   let storedTestPlanKey = null;
 
+  // ── DEMO CACHE (TEMPORARY — revert after the demo) ──────────────────────
+  // Caches GET responses in-memory, keyed by full URL, so repeat clicks
+  // during a live demo return instantly instead of re-waiting on slow
+  // upstream Xray/Jira scans. Cache lives only for this page load (cleared
+  // on refresh) and never touches POST/mutating calls.
+  // TO REVERT: replace `cachedFetch(url)` calls below back to `fetch(url)`,
+  // or simply set _DEMO_CACHE_ENABLED = false.
+  const _DEMO_CACHE_ENABLED = true;
+  const _demoCache = new Map();
+  async function cachedFetch(url, options) {
+    if (!_DEMO_CACHE_ENABLED || (options && options.method && options.method !== 'GET')) {
+      return fetch(url, options);
+    }
+    if (_demoCache.has(url)) {
+      const cached = _demoCache.get(url);
+      return { ok: true, status: 200, json: async () => cached };
+    }
+    const resp = await fetch(url, options);
+    if (resp.ok) {
+      const cloned = resp.clone();
+      cloned.json().then(data => _demoCache.set(url, data)).catch(() => {});
+    }
+    return resp;
+  }
+
   // ── UI helpers ─────────────────────────────────────────────────────────────
 
   function setStatus(state, msg) {
@@ -1023,7 +1051,69 @@
     }
   }
 
+  async function runAiPrompt() {
+    const prompt = document.getElementById('prompt').value.trim();
+    const resultBox = document.getElementById('aiPromptResult');
+    if (!prompt) { alert('Please enter a prompt.'); return; }
+
+    const btn = document.getElementById('btnAiPrompt');
+    btn.disabled = true;
+    resultBox.style.display = 'block';
+    resultBox.textContent = 'Asking the AI model…';
+
+    try {
+      const resp = await fetch(`${BASE}/ai/prompt`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) {
+        resultBox.textContent = 'Error: ' + (data.detail || resp.statusText);
+        return;
+      }
+
+      const decision = data.decision || {};
+      const value = decision.working_group || decision.region || '';
+      const mode  = decision.working_group ? 'working_group' : (decision.region ? 'region' : null);
+
+      if (data.action === 'fail_all' && mode) {
+        resultBox.style.display = 'none';
+        openFailAllModal();
+        failAllSetMode(mode);
+        // Highlight/click the matching button in that step, same as a manual click.
+        const btnGroup = mode === 'region' ? '#failAllRegionButtons button' : '#failAllWgButtons button';
+        const match = Array.from(document.querySelectorAll(btnGroup))
+          .find(b => b.textContent.trim().toLowerCase() === value.toLowerCase());
+        if (match) match.click();
+        else await failAllRun(mode, value, value);
+      } else if (data.action === 'blocked_all' && mode) {
+        resultBox.style.display = 'none';
+        openBlockedAllModal();
+        blockedAllSetMode(mode);
+        const btnGroup = mode === 'region' ? '#blockedAllRegionButtons button' : '#blockedAllWgButtons button';
+        const match = Array.from(document.querySelectorAll(btnGroup))
+          .find(b => b.textContent.trim().toLowerCase() === value.toLowerCase());
+        if (match) match.click();
+        else await blockedAllRun(mode, value, value);
+      } else if (data.action === 'failed_tests' && decision.test_plan_key) {
+        resultBox.style.display = 'none';
+        document.getElementById('prompt').value = decision.test_plan_key;
+        await runAnalysis();
+      } else {
+        resultBox.style.display = 'block';
+        resultBox.textContent = JSON.stringify(data, null, 2);
+      }
+    } catch (err) {
+      resultBox.style.display = 'block';
+      resultBox.textContent = 'Error: ' + err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   async function runAnalysis() {
+
     const prompt = document.getElementById('prompt').value.trim();
     if (!prompt) { alert('Please enter a prompt.'); return; }
 
@@ -1170,7 +1260,7 @@
     document.getElementById('btnBlocked').disabled = true;
 
     try {
-      const resp = await fetch(endpoint);
+      const resp = await cachedFetch(endpoint);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
@@ -1220,7 +1310,7 @@
     document.getElementById('btnMail').disabled    = true;
 
     try {
-      const resp = await fetch(`${BASE}/xray/blocked-report/${storedTestPlanKey}`);
+      const resp = await cachedFetch(`${BASE}/xray/blocked-report/${storedTestPlanKey}`);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
@@ -1926,7 +2016,7 @@
       const url = isBlocked
         ? `${BASE}/xray/blocked-overview/${planKey}`
         : `${BASE}/xray/fail-overview/${planKey}${historical ? '?historical=true' : ''}`;
-      const resp = await fetch(url);
+      const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
@@ -2287,7 +2377,7 @@
     try {
       const param = mode === 'region' ? 'region' : 'working_group';
       const url = `${BASE}/test-results/failures/fail-all?${param}=${encodeURIComponent(value)}`;
-      const resp = await fetch(url);
+      const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
@@ -2375,7 +2465,7 @@
     try {
       const param = mode === 'region' ? 'region' : 'working_group';
       const url = `${BASE}/test-results/blocked/blocked-all?${param}=${encodeURIComponent(value)}`;
-      const resp = await fetch(url);
+      const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
 
