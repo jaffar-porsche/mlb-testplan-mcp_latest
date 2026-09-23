@@ -2953,6 +2953,7 @@ def get_failures_by_region_working_group(
     working_group: str = Query(..., description="Working Group name or synonym (e.g. 'core hmi', 'navigation')"),
     priority: Optional[str] = Query(default=None, description="Priority to filter for (e.g. 'High'). Omit to get all priorities grouped as low/medium/high/other."),
     historical: bool = Query(default=False, description="Include tests that were rerun/reset after FAIL"),
+    page_id: str = Query(default="", description="Optional: query a single Confluence page ID instead of merging both pages"),
 ):
     """
     Resolve the Test Plan for the given Region + Working Group via Confluence,
@@ -2991,7 +2992,8 @@ def get_failures_by_region_working_group(
     }
     seen_keys: set = set()
     test_plans: list = []
-    for _pid in [CONFLUENCE_PAGE_ID, "2381910576"]:
+    page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
+    for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
             key = item.get("test_plan_key")
             if key and key not in seen_keys:
@@ -3162,6 +3164,7 @@ def get_fail_all(
     region: Optional[str] = Query(default=None, description="Region name or synonym (e.g. 'testing ece', 'japan'). Provide this OR working_group."),
     working_group: Optional[str] = Query(default=None, description="Working Group name or synonym (e.g. 'navigation', 'core hmi'). Provide this OR region."),
     historical: bool = Query(default=False, description="Include tests that were rerun/reset after FAIL"),
+    page_id: str = Query(default="", description="Optional: query a single Confluence page ID instead of merging both pages"),
 ):
     """
     Resolve every Test Plan key that belongs to the given Region OR Working
@@ -3218,7 +3221,8 @@ def get_fail_all(
     seen_keys: set = set()
     test_plans: list = []
     key_working_group: dict[str, str] = {}
-    for _pid in [CONFLUENCE_PAGE_ID, "2381910576"]:
+    page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
+    for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
             key = item.get("test_plan_key")
             wg = item.get("working_group", "") or ""
@@ -3322,6 +3326,7 @@ def _build_blocked_all_combined_jql(test_plans: list[str]) -> str:
 def get_blocked_all(
     region: Optional[str] = Query(default=None, description="Region name or synonym (e.g. 'testing ece', 'japan'). Provide this OR working_group."),
     working_group: Optional[str] = Query(default=None, description="Working Group name or synonym (e.g. 'navigation', 'core hmi'). Provide this OR region."),
+    page_id: str = Query(default="", description="Optional: query a single Confluence page ID instead of merging both pages"),
 ):
     """
     Resolve every Test Plan key that belongs to the given Region OR Working
@@ -3357,7 +3362,8 @@ def get_blocked_all(
     seen_keys: set = set()
     test_plans: list = []
     key_working_group: dict[str, str] = {}
-    for _pid in [CONFLUENCE_PAGE_ID, "2381910576"]:
+    page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
+    for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
             key = item.get("test_plan_key")
             wg = item.get("working_group", "") or ""
@@ -3433,6 +3439,120 @@ def get_blocked_all(
     }
 
 
+# -- Tool: AI Prompt router (free-text -> existing endpoints) ----------------
+
+@app.post(
+    "/ai/prompt",
+    operation_id="ai_prompt_router",
+    summary="Free-text prompt understood by the LLM and routed to the right report endpoint",
+)
+def ai_prompt_router(body: dict = Body(default={})):
+    """
+    Accepts a free-text prompt (e.g. "show me all blocked tests for navigation"),
+    asks the internal Porsche LLM to classify it into one of the known actions
+    (fail_all, blocked_all, failed_tests) with the required parameters, then
+    calls that action's existing implementation directly and returns both the
+    AI's interpretation and the resulting data - no separate LLM tool-calling
+    loop, just a single classify-then-dispatch step.
+
+    Body: { "prompt": "..." }
+    """
+    import httpx as _httpx
+    import json as _json
+
+    user_prompt = (body.get("prompt") or "").strip()
+    if not user_prompt:
+        raise HTTPException(status_code=400, detail="Provide a non-empty 'prompt'.")
+
+    system_prompt = (
+        "You are a router for a test-plan reporting tool. Read the user's request and "
+        "respond with ONLY a JSON object (no prose, no markdown fences) describing which "
+        "action to take. Valid shapes:\n"
+        '  {"action": "fail_all", "region": "<name or null>", "working_group": "<name or null>", "historical": false}\n'
+        '  {"action": "blocked_all", "region": "<name or null>", "working_group": "<name or null>"}\n'
+        '  {"action": "failed_tests", "test_plan_key": "<JIRA key like MLBEVO-17818>"}\n'
+        '  {"action": "unknown", "reason": "<why nothing matched>"}\n'
+        "IMPORTANT: for fail_all/blocked_all set EXACTLY ONE of region/working_group and leave "
+        "the other as null - never set both. A working_group is a functional team name (e.g. "
+        "'navigation', 'core hmi'); a region is a geography/testing-site name (e.g. 'testing ece', "
+        "'japan', 'europe'). If the prompt mentions both a working group name and a region name, "
+        "prefer the working_group (it is the more specific filter) and set region to null. "
+        "Use 'historical' true only if the user explicitly asks for historical/rerun results."
+    )
+
+    try:
+        import ssl as _ssl
+        cert = _LLM_CERT if os.path.exists(_LLM_CERT) else True
+        _ctx = _ssl.create_default_context(cafile=cert) if isinstance(cert, str) else True
+        _transport = _httpx.HTTPTransport(verify=_ctx)
+        with _httpx.Client(transport=_transport, timeout=60) as llm_client:
+            resp = llm_client.post(
+                f"{_LLM_BASE_URL}/chat/completions",
+                json={
+                    "model": _LLM_MODEL,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": 0.0,
+                    "max_tokens": 300,
+                },
+                headers={"Authorization": "Bearer ollama"},
+            )
+            resp.raise_for_status()
+            message = resp.json()["choices"][0]["message"]
+            raw = (message.get("content") or "").strip() or (message.get("reasoning") or "").strip()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"LLM call failed: {e}")
+
+    # Strip accidental markdown fences before parsing.
+    cleaned = raw.strip()
+    if cleaned.startswith("```"):
+        cleaned = cleaned.strip("`")
+        cleaned = cleaned.split("\n", 1)[1] if "\n" in cleaned else cleaned
+    try:
+        decision = _json.loads(cleaned)
+    except Exception:
+        return {"prompt": user_prompt, "ai_raw_response": raw, "action": "unknown",
+                "error": "Could not parse AI response as JSON."}
+
+    action = decision.get("action")
+
+    # Safety net: even if the LLM ignores the "exactly one" instruction, never
+    # let both region and working_group reach the underlying endpoint - prefer
+    # working_group since it's the more specific filter.
+    if action in ("fail_all", "blocked_all") and decision.get("region") and decision.get("working_group"):
+        decision["region"] = None
+
+    try:
+        if action == "fail_all":
+            data = get_fail_all(
+                region=decision.get("region") or None,
+                working_group=decision.get("working_group") or None,
+                historical=bool(decision.get("historical", False)),
+            )
+        elif action == "blocked_all":
+            data = get_blocked_all(
+                region=decision.get("region") or None,
+                working_group=decision.get("working_group") or None,
+            )
+        elif action == "failed_tests":
+            tp_key = decision.get("test_plan_key")
+            if not tp_key:
+                return {"prompt": user_prompt, "action": action, "decision": decision,
+                        "error": "AI did not provide a test_plan_key."}
+            data = get_failed_tests(tp_key)
+        else:
+            return {"prompt": user_prompt, "action": "unknown", "decision": decision,
+                    "message": decision.get("reason") or "Could not match the prompt to a known action."}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to execute resolved action '{action}': {e}")
+
+    return {"prompt": user_prompt, "action": action, "decision": decision, "data": data}
+
+
 # -- Tool: AI summary for FAIL Overview ---------------------------------------
 
 _LLM_BASE_URL  = "https://ollama-api.tech.emea.porsche.biz/v1"
@@ -3444,6 +3564,195 @@ _LLM_CERT      = os.getenv(
     os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs", "ollama-api-fullchain.pem"),
 )
 _LLM_MODEL     = "gpt-oss:20b"
+
+
+# -- Tool: Sally D2D connection test ------------------------------------------
+# Loads the D2DSallyTokenProvider from certs/d2d_test.py (kept alongside the
+# .env it depends on) purely to validate that App Registration + credentials
+# work end-to-end before wiring Sally into the actual AI summary/prompt paths.
+_CERTS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "certs")
+
+
+@app.post(
+    "/sally/test-connection",
+    operation_id="sally_test_connection",
+    summary="Validate Sally D2D credentials by acquiring an MSAL access token",
+)
+def sally_test_connection():
+    import sys as _sys
+    import time as _time
+
+    if _CERTS_DIR not in _sys.path:
+        _sys.path.insert(0, _CERTS_DIR)
+
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+        from d2d_test import D2DSallyTokenProvider  # type: ignore
+
+        _load_dotenv(os.path.join(_CERTS_DIR, ".env"))
+
+        missing = [
+            k for k in ("BACKEND_APP_ID", "BACKEND_APP_CLIENT_SECRET", "TENANT_ID", "THIRD_PARTY_APP_ID")
+            if not os.environ.get(k)
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required env var(s) in certs/.env: {', '.join(missing)}",
+            )
+
+        provider = D2DSallyTokenProvider(
+            backend_app_id=os.environ["BACKEND_APP_ID"],
+            backend_app_client_secret=os.environ["BACKEND_APP_CLIENT_SECRET"],
+            tenant_id=os.environ["TENANT_ID"],
+            third_party_app_id=os.environ["THIRD_PARTY_APP_ID"],
+        )
+
+        start = _time.time()
+        token = provider.get_token()
+        elapsed = _time.time() - start
+
+        return {
+            "ok": True,
+            "message": "Sally D2D token acquired successfully.",
+            "token_length": len(token),
+            "token_preview": token[:20] + "..." if token else "",
+            "elapsed_seconds": round(elapsed, 2),
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Sally D2D token acquisition failed: {e}")
+
+
+# -- Sally as an AI provider ---------------------------------------------------
+# AI_PROVIDER=sally switches every AI summary/prompt endpoint below from the
+# internal Ollama LLM to Sally, using the same D2D credentials validated by
+# /sally/test-connection. Defaults to "ollama" so nothing changes until you
+# opt in once Sally's chat-completion contract is confirmed.
+_AI_PROVIDER   = os.getenv("AI_PROVIDER", "ollama").strip().lower()
+_SALLY_BASE_URL = os.getenv("SALLY_BASE_URL", "https://backend.sally.peg-dev.cloud")
+# Confirmed via Sally's "API Testing" Confluence doc (AI9G/2095564077):
+# GPT completion service lives at BASE_URL + /v1/chat/gpt-completions
+# (Swagger/OAS 2.0 - see /apidocs on a local Sally instance or
+# sally-inference/docs/swagger_config.yml for the exact request/response
+# schema; request body below is a best-effort OpenAI-style guess pending
+# confirmation from that swagger doc).
+_SALLY_CHAT_PATH = os.getenv("SALLY_CHAT_PATH", "/v1/chat/gpt-completions")
+_SALLY_MODEL      = os.getenv("SALLY_MODEL", "default")
+
+_sally_token_provider = None  # lazily built on first use
+
+
+def _get_sally_token() -> str:
+    global _sally_token_provider
+    if _sally_token_provider is None:
+        if _CERTS_DIR not in _sys_path_list():
+            import sys as _sys
+            _sys.path.insert(0, _CERTS_DIR)
+        from dotenv import load_dotenv as _load_dotenv
+        from d2d_test import D2DSallyTokenProvider  # type: ignore
+
+        _load_dotenv(os.path.join(_CERTS_DIR, ".env"))
+        _sally_token_provider = D2DSallyTokenProvider(
+            backend_app_id=os.environ["BACKEND_APP_ID"],
+            backend_app_client_secret=os.environ["BACKEND_APP_CLIENT_SECRET"],
+            tenant_id=os.environ["TENANT_ID"],
+            third_party_app_id=os.environ["THIRD_PARTY_APP_ID"],
+        )
+    return _sally_token_provider.get_token()
+
+
+def _sys_path_list():
+    import sys as _sys
+    return _sys.path
+
+
+def _call_sally_llm(prompt: str, max_tokens: int = 300, temperature: float = 0.3) -> str:
+    """Call Sally's chat-completion API using a D2D-acquired bearer token.
+
+    Placeholder request/response shape (OpenAI-style) - update once Sally's
+    actual Swagger contract is confirmed.
+    """
+    token = _get_sally_token()
+    with httpx.Client(timeout=120) as client:
+        resp = client.post(
+            f"{_SALLY_BASE_URL}{_SALLY_CHAT_PATH}",
+            json={
+                "model": _SALLY_MODEL,
+                "messages": [{"role": "user", "content": prompt}],
+                "temperature": temperature,
+                "max_tokens": max_tokens,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        message = data["choices"][0]["message"]
+        return (message.get("content") or "").strip()
+
+
+@app.post(
+    "/sally/test-chat",
+    operation_id="sally_test_chat",
+    summary="Diagnostic: send a raw request body to Sally's chat endpoint and see the raw response",
+)
+def sally_test_chat(body: dict = Body(default={})):
+    """
+    Lets you probe Sally's real /v1/chat/gpt-completions contract without
+    editing server.py or restarting the server. Since the Swagger UI/YAML
+    doc is behind an internal login wall this agent cannot reach, use this
+    endpoint to try candidate request shapes and inspect the raw response.
+
+    Body:
+      {
+        "path": "/v1/chat/gpt-completions",   # optional override of _SALLY_CHAT_PATH
+        "request_body": { ... any JSON you want to try ... }
+      }
+
+    If "request_body" is omitted, a default OpenAI-style body is sent
+    (same shape _call_sally_llm currently uses) so you have a known
+    starting point to diverge from.
+
+    Returns: { "status_code": ..., "response_body": ..., "request_sent": ... }
+    so you can see exactly what Sally accepted/rejected.
+    """
+    path = (body.get("path") or _SALLY_CHAT_PATH).strip()
+    request_body = body.get("request_body") or {
+        "model": _SALLY_MODEL,
+        "messages": [{"role": "user", "content": "Say hello in one sentence."}],
+        "temperature": 0.3,
+        "max_tokens": 50,
+    }
+
+    try:
+        token = _get_sally_token()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Failed to acquire Sally D2D token: {e}")
+
+    url = f"{_SALLY_BASE_URL}{path}"
+    try:
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(
+                url,
+                json=request_body,
+                headers={"Authorization": f"Bearer {token}"},
+            )
+        try:
+            response_body = resp.json()
+        except Exception:
+            response_body = resp.text
+
+        return {
+            "url": url,
+            "status_code": resp.status_code,
+            "request_sent": request_body,
+            "response_body": response_body,
+            "response_headers": dict(resp.headers),
+            "token_preview": token[:20] + "..." if token else "",
+        }
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Request to Sally failed: {e}")
 
 
 @app.post(
@@ -3625,7 +3934,14 @@ def xray_blocked_overview_ai_summary(issue_key: str, body: dict = Body(default={
 
 
 def _call_llm(prompt: str, max_tokens: int = 300, temperature: float = 0.3) -> str:
-    """Call the internal Porsche LLM (bypasses corporate proxy) and return text."""
+    """Call the configured LLM provider and return text.
+
+    AI_PROVIDER=sally routes through Sally (D2D auth); anything else (default
+    "ollama") keeps using the internal Porsche LLM as before.
+    """
+    if _AI_PROVIDER == "sally":
+        return _call_sally_llm(prompt, max_tokens=max_tokens, temperature=temperature)
+
     import httpx as _httpx
     import ssl as _ssl
 
@@ -3652,6 +3968,7 @@ def _call_llm(prompt: str, max_tokens: int = 300, temperature: float = 0.3) -> s
         if not text:
             text = (message.get("reasoning") or "").strip()
         return text
+
 
 
 @app.post(

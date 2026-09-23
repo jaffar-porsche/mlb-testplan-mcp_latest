@@ -294,6 +294,39 @@
     }
 
     .action-row { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 20px; }
+    .field-row { display: flex; gap: 16px; flex-wrap: wrap; align-items: end; margin-top: 20px; }
+    .field-group { min-width: 280px; flex: 1 1 320px; }
+    .field-label {
+      display: block;
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--pds-color-neutral-1);
+      margin-bottom: 8px;
+    }
+    .field-help {
+      margin-top: 8px;
+      font-size: 0.8rem;
+      color: var(--pds-color-neutral-1);
+    }
+    select {
+      width: 100%;
+      height: 48px;
+      border: 1px solid var(--pds-color-neutral-2);
+      border-radius: var(--pds-border-radius-sm);
+      padding: 0 14px;
+      font-family: var(--pds-font);
+      font-size: 0.95rem;
+      color: var(--pds-color-primary);
+      background: var(--pds-color-surface);
+      outline: none;
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+    }
+    select:focus {
+      border-color: var(--pds-color-primary);
+      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+    }
 
     /* ── Status banner ── */
     .status {
@@ -491,6 +524,16 @@
 <!-- ── Input Card ── -->
 <div class="card">
   <h2>Analyze Test Plan</h2>
+  <div class="field-row">
+    <div class="field-group">
+      <label class="field-label" for="pageIdSelect">Confluence Source Page</label>
+      <select id="pageIdSelect" onchange="handlePageSelectionChange()">
+        <option value="2378907792">2378907792 - Workstream Applications</option>
+        <option value="2381910576">2381910576 - Workstream Platform</option>
+      </select>
+      <div class="field-help" id="pageIdHelp">Using Workstream Applications (2378907792).</div>
+    </div>
+  </div>
   <textarea id="prompt" placeholder='e.g. "Show me the fail status for MLBEVO-17818" or "Navigation ECE failed tests"'></textarea>
   <div class="action-row">
     <button class="btn btn-primary" id="btnAnalyze" onclick="runAnalysis()">
@@ -503,6 +546,7 @@
     <button class="btn btn-secondary" id="btnFailAll" onclick="openFailAllModal()">FAIL All</button>
     <button class="btn btn-secondary" id="btnBlockedAll" onclick="openBlockedAllModal()">BLOCKED All</button>
     <button class="btn btn-secondary" id="btnCloneConfluence" onclick="cloneConfluence()">Clone Confluence</button>
+    <button class="btn btn-secondary" id="btnSallyTest" onclick="testSallyConnection()" style="border-color:#0d9488;color:#0d9488;">Test Sally</button>
   </div>
   <pre id="aiPromptResult" style="display:none;white-space:pre-wrap;max-height:420px;overflow:auto;margin-top:12px;background:#0d1117;color:#c9d1d9;padding:12px;border-radius:8px;font-size:0.85rem;"></pre>
 </div>
@@ -539,14 +583,7 @@
     <!-- Step 2: Working Group buttons -->
     <div id="failAllWgStep" style="display:none;">
       <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Select a Working Group</div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="failAllWgButtons">
-        <button class="btn btn-secondary" onclick="failAllRun('working_group','Navigation','Navigation')">Navigation</button>
-        <button class="btn btn-secondary" onclick="failAllRun('working_group','Phone-Connectivity-SPI','Phone-Connectivity-SPI')">Phone-Connectivity-SPI</button>
-        <button class="btn btn-secondary" onclick="failAllRun('working_group','Core HMI / GBK','Core HMI / GBK')">Core HMI / GBK</button>
-        <button class="btn btn-secondary" onclick="failAllRun('working_group','Media / Tuner (Entertainment)','Media / Tuner (Entertainment)')">Media / Tuner (Entertainment)</button>
-        <button class="btn btn-secondary" onclick="failAllRun('working_group','App Store / 3rd Party','App Store / 3rd Party')">App Store / 3rd Party</button>
-        <button class="btn btn-secondary" onclick="failAllRun('working_group','Digital assistant','Digital assistant')">Digital assistant</button>
-      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="failAllWgButtons"></div>
     </div>
 
     <!-- Step 3: Results -->
@@ -593,14 +630,7 @@
     <!-- Step 2: Working Group buttons -->
     <div id="blockedAllWgStep" style="display:none;">
       <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">Select a Working Group</div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="blockedAllWgButtons">
-        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Navigation','Navigation')">Navigation</button>
-        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Phone-Connectivity-SPI','Phone-Connectivity-SPI')">Phone-Connectivity-SPI</button>
-        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Core HMI / GBK','Core HMI / GBK')">Core HMI / GBK</button>
-        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Media / Tuner (Entertainment)','Media / Tuner (Entertainment)')">Media / Tuner (Entertainment)</button>
-        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','App Store / 3rd Party','App Store / 3rd Party')">App Store / 3rd Party</button>
-        <button class="btn btn-secondary" onclick="blockedAllRun('working_group','Digital assistant','Digital assistant')">Digital assistant</button>
-      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="blockedAllWgButtons"></div>
     </div>
 
     <!-- Step 3: Results -->
@@ -641,14 +671,7 @@
     <!-- Step 2: Working Group -->
     <div id="priorityWgStep" style="display:none;margin-top:22px;">
       <div style="font-size:.72rem;color:var(--pds-color-neutral-1);margin-bottom:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px;">2. Select a Working Group <span id="priorityWgRegionLabel" style="color:var(--pds-color-brand);text-transform:none;letter-spacing:normal;"></span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="priorityWgButtons">
-        <button class="btn btn-secondary" onclick="prioritySelectWG('Navigation')">Navigation</button>
-        <button class="btn btn-secondary" onclick="prioritySelectWG('Phone-Connectivity-SPI')">Phone-Connectivity-SPI</button>
-        <button class="btn btn-secondary" onclick="prioritySelectWG('Core HMI / GBK')">Core HMI / GBK</button>
-        <button class="btn btn-secondary" onclick="prioritySelectWG('Media / Tuner (Entertainment)')">Media / Tuner (Entertainment)</button>
-        <button class="btn btn-secondary" onclick="prioritySelectWG('App Store / 3rd Party')">App Store / 3rd Party</button>
-        <button class="btn btn-secondary" onclick="prioritySelectWG('Digital assistant')">Digital assistant</button>
-      </div>
+      <div style="display:flex;flex-wrap:wrap;gap:12px;" id="priorityWgButtons"></div>
     </div>
 
     <!-- Step 3: Results -->
@@ -785,6 +808,10 @@
 
 <script>
   const BASE = 'http://127.0.0.1:8080';
+  const PAGE_OPTIONS = {
+    '2378907792': 'Workstream Applications',
+    '2381910576': 'Workstream Platform',
+  };
   let storedTestPlanKey = null;
 
   // ── DEMO CACHE (TEMPORARY — revert after the demo) ──────────────────────
@@ -935,6 +962,98 @@
     return html;
   }
 
+  function getSelectedPageId() {
+    return document.getElementById('pageIdSelect')?.value || '2378907792';
+  }
+
+  function getSelectedPageLabel() {
+    return PAGE_OPTIONS[getSelectedPageId()] || getSelectedPageId();
+  }
+
+  function handlePageSelectionChange() {
+    document.getElementById('pageIdHelp').textContent = `Using ${getSelectedPageLabel()} (${getSelectedPageId()}).`;
+  }
+
+  async function fetchConfluenceTestPlans(filters = {}) {
+    const params = new URLSearchParams({ page_id: getSelectedPageId() });
+    Object.entries(filters).forEach(([key, value]) => {
+      if (value) params.set(key, value);
+    });
+    const resp = await fetch(`${BASE}/confluence/testplans?${params.toString()}`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+    return data.test_plans || [];
+  }
+
+  function extractWorkingGroups(plans) {
+    return [...new Set((plans || [])
+      .map(item => item.working_group || item.workstream || '')
+      .filter(Boolean))].sort((left, right) => left.localeCompare(right));
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function renderPriorityWorkingGroups(groups) {
+    const container = document.getElementById('priorityWgButtons');
+    if (!groups.length) {
+      container.innerHTML = '<p class="empty" style="margin:0;">No working groups found for the selected page and region.</p>';
+      return;
+    }
+    container.innerHTML = groups.map(group =>
+      `<button class="btn btn-secondary" onclick='prioritySelectWG(${JSON.stringify(group)})'>${escapeHtml(group)}</button>`
+    ).join('');
+  }
+
+  function renderFailAllWorkingGroups(groups) {
+    const container = document.getElementById('failAllWgButtons');
+    if (!groups.length) {
+      container.innerHTML = '<p class="empty" style="margin:0;">No working groups found for the selected page.</p>';
+      return;
+    }
+    container.innerHTML = groups.map(group =>
+      `<button class="btn btn-secondary" onclick='failAllRun("working_group", ${JSON.stringify(group)}, ${JSON.stringify(group)})'>${escapeHtml(group)}</button>`
+    ).join('');
+  }
+
+  function renderBlockedAllWorkingGroups(groups) {
+    const container = document.getElementById('blockedAllWgButtons');
+    if (!groups.length) {
+      container.innerHTML = '<p class="empty" style="margin:0;">No working groups found for the selected page.</p>';
+      return;
+    }
+    container.innerHTML = groups.map(group =>
+      `<button class="btn btn-secondary" onclick='blockedAllRun("working_group", ${JSON.stringify(group)}, ${JSON.stringify(group)})'>${escapeHtml(group)}</button>`
+    ).join('');
+  }
+
+  async function loadWorkingGroupsForPriority(region) {
+    const container = document.getElementById('priorityWgButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
+    const plans = await fetchConfluenceTestPlans({ region });
+    renderPriorityWorkingGroups(extractWorkingGroups(plans));
+  }
+
+  async function loadWorkingGroupsForFailAll() {
+    const container = document.getElementById('failAllWgButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
+    const plans = await fetchConfluenceTestPlans();
+    renderFailAllWorkingGroups(extractWorkingGroups(plans));
+  }
+
+  async function loadWorkingGroupsForBlockedAll() {
+    const container = document.getElementById('blockedAllWgButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
+    const plans = await fetchConfluenceTestPlans();
+    renderBlockedAllWorkingGroups(extractWorkingGroups(plans));
+  }
+
   // ── Tool 1 – parse keywords (now also resolves test_plan_key via Confluence) ─
 
   async function callTool1(prompt) {
@@ -1048,6 +1167,27 @@
       setStatus('error', '✗ ' + err.message);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function testSallyConnection() {
+    const resultBox = document.getElementById('aiPromptResult');
+    const btn = document.getElementById('btnSallyTest');
+    btn.disabled = true;
+    resultBox.style.display = 'block';
+    resultBox.textContent = 'Testing Sally D2D connection…';
+    try {
+      const resp = await fetch(`${BASE}/sally/test-connection`, { method: 'POST' });
+      const data = await resp.json();
+      if (!resp.ok) {
+        resultBox.textContent = 'Sally test FAILED:\n' + (data.detail || resp.statusText);
+        return;
+      }
+      resultBox.textContent = 'Sally test OK ✔\n' + JSON.stringify(data, null, 2);
+    } catch (err) {
+      resultBox.textContent = 'Sally test FAILED: ' + err.message;
+    } finally {
+      btn.disabled = false;
     }
   }
 
@@ -1960,10 +2100,7 @@
     picker.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
-      const resp = await fetch(`${BASE}/confluence/testplans?region=${encodeURIComponent(region)}`);
-      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-      const data = await resp.json();
-      const plans = data.test_plans || [];
+      const plans = await fetchConfluenceTestPlans({ region });
 
       foSetBanner('foPickerStatus', plans.length ? 'success' : 'error',
         plans.length ? `✓ ${plans.length} test plan(s) found. Click one to load.` : 'No test plans found for this region.');
@@ -2184,7 +2321,7 @@
     document.getElementById('prioritySubtitle').textContent =
       'Select a region to list test plans, then click a plan to view all FAILs with timestamp, tester and KPM links.';
     document.querySelectorAll('#priorityRegionButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
-    document.querySelectorAll('#priorityWgButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+    document.getElementById('priorityWgButtons').innerHTML = '';
     document.getElementById('priorityModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _priorityEscHandler);
   }
@@ -2199,7 +2336,7 @@
     if (e.key === 'Escape') closePriorityModal();
   }
 
-  function prioritySelectRegion(region, label) {
+  async function prioritySelectRegion(region, label) {
     _priorityRegion = region;
     _priorityRegionLabel = label;
     document.querySelectorAll('#priorityRegionButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
@@ -2210,7 +2347,7 @@
     document.getElementById('priorityWgRegionLabel').textContent = `(${label})`;
     document.getElementById('priorityWgStep').style.display = 'block';
     document.getElementById('priorityResultStep').style.display = 'none';
-    document.querySelectorAll('#priorityWgButtons button').forEach(b => { b.style.background=''; b.style.color=''; });
+    await loadWorkingGroupsForPriority(region);
   }
 
   let _priorityData = null;
@@ -2225,10 +2362,10 @@
     resultStep.style.display = 'block';
     document.getElementById('prioritySummaryRow').innerHTML = '';
     document.getElementById('priorityBuckets').innerHTML = '';
-    foSetBanner('priorityResultStatus', 'loading', `Fetching FAILs for ${_priorityRegionLabel} / ${workingGroup}…`);
+    foSetBanner('priorityResultStatus', 'loading', `Fetching FAILs for ${_priorityRegionLabel} / ${workingGroup} from ${getSelectedPageLabel()}…`);
 
     try {
-      const url = `${BASE}/test-results/failures/by-region-working-group?region=${encodeURIComponent(_priorityRegion)}&working_group=${encodeURIComponent(workingGroup)}`;
+      const url = `${BASE}/test-results/failures/by-region-working-group?region=${encodeURIComponent(_priorityRegion)}&working_group=${encodeURIComponent(workingGroup)}&page_id=${encodeURIComponent(getSelectedPageId())}`;
       const resp = await fetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -2240,7 +2377,7 @@
 
       if (!totalFail) {
         document.getElementById('priorityBuckets').innerHTML = '<p class="empty">No FAIL results found.</p>';
-        foSetBanner('priorityResultStatus', 'success', `No FAILs found for ${_priorityRegionLabel} / ${workingGroup}`);
+        foSetBanner('priorityResultStatus', 'success', `No FAILs found for ${_priorityRegionLabel} / ${workingGroup} on ${getSelectedPageLabel()}`);
         return;
       }
 
@@ -2268,7 +2405,7 @@
       boxesHtml += '<div id="priorityExpandArea" style="margin-top:20px;"></div>';
 
       document.getElementById('priorityBuckets').innerHTML = boxesHtml;
-      foSetBanner('priorityResultStatus', 'success', `✓ ${totalFail} FAIL(s) for ${_priorityRegionLabel} / ${workingGroup}`);
+      foSetBanner('priorityResultStatus', 'success', `✓ ${totalFail} FAIL(s) for ${_priorityRegionLabel} / ${workingGroup} on ${getSelectedPageLabel()}`);
     } catch (err) {
       foSetBanner('priorityResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('priorityBuckets').innerHTML = '<p class="empty">Could not load data.</p>';
@@ -2332,6 +2469,7 @@
     document.getElementById('failAllModeRegionBtn').style.color = '';
     document.getElementById('failAllModeWgBtn').style.background = '';
     document.getElementById('failAllModeWgBtn').style.color = '';
+    document.getElementById('failAllWgButtons').innerHTML = '';
     document.getElementById('failAllModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _failAllEscHandler);
   }
@@ -2346,7 +2484,7 @@
     if (e.key === 'Escape') closeFailAllModal();
   }
 
-  function failAllSetMode(mode) {
+  async function failAllSetMode(mode) {
     _failAllMode = mode;
     document.getElementById('failAllRegionStep').style.display = mode === 'region' ? 'block' : 'none';
     document.getElementById('failAllWgStep').style.display = mode === 'working_group' ? 'block' : 'none';
@@ -2358,6 +2496,9 @@
     regionBtn.style.color = mode === 'region' ? '#fff' : '';
     wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
     wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
+    if (mode === 'working_group') {
+      await loadWorkingGroupsForFailAll();
+    }
   }
 
   async function failAllRun(mode, value, label) {
@@ -2372,11 +2513,11 @@
     resultStep.style.display = 'block';
     document.getElementById('failAllJqlText').textContent = '';
     document.getElementById('failAllTableArea').innerHTML = '';
-    foSetBanner('failAllResultStatus', 'loading', `Fetching all FAILs for ${label}…`);
+    foSetBanner('failAllResultStatus', 'loading', `Fetching all FAILs for ${label} from ${getSelectedPageLabel()}…`);
 
     try {
       const param = mode === 'region' ? 'region' : 'working_group';
-      const url = `${BASE}/test-results/failures/fail-all?${param}=${encodeURIComponent(value)}`;
+      const url = `${BASE}/test-results/failures/fail-all?${param}=${encodeURIComponent(value)}&page_id=${encodeURIComponent(getSelectedPageId())}`;
       const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -2386,7 +2527,7 @@
       const results = data.results || [];
       if (!results.length) {
         document.getElementById('failAllTableArea').innerHTML = '<p class="empty">No FAIL results found.</p>';
-        foSetBanner('failAllResultStatus', 'success', `No FAILs found for ${label} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        foSetBanner('failAllResultStatus', 'success', `No FAILs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
         return;
       }
 
@@ -2402,7 +2543,7 @@
         comment:       r.comment || '',
       }));
       document.getElementById('failAllTableArea').innerHTML = jsonToTable(mapped);
-      foSetBanner('failAllResultStatus', 'success', `✓ ${data.total_fail} FAIL(s) for ${label} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+      foSetBanner('failAllResultStatus', 'success', `✓ ${data.total_fail} FAIL(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
       foSetBanner('failAllResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('failAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
@@ -2420,6 +2561,7 @@
     document.getElementById('blockedAllModeRegionBtn').style.color = '';
     document.getElementById('blockedAllModeWgBtn').style.background = '';
     document.getElementById('blockedAllModeWgBtn').style.color = '';
+    document.getElementById('blockedAllWgButtons').innerHTML = '';
     document.getElementById('blockedAllModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _blockedAllEscHandler);
   }
@@ -2434,7 +2576,7 @@
     if (e.key === 'Escape') closeBlockedAllModal();
   }
 
-  function blockedAllSetMode(mode) {
+  async function blockedAllSetMode(mode) {
     _blockedAllMode = mode;
     document.getElementById('blockedAllRegionStep').style.display = mode === 'region' ? 'block' : 'none';
     document.getElementById('blockedAllWgStep').style.display = mode === 'working_group' ? 'block' : 'none';
@@ -2446,6 +2588,9 @@
     regionBtn.style.color = mode === 'region' ? '#fff' : '';
     wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
     wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
+    if (mode === 'working_group') {
+      await loadWorkingGroupsForBlockedAll();
+    }
   }
 
   async function blockedAllRun(mode, value, label) {
@@ -2460,11 +2605,11 @@
     resultStep.style.display = 'block';
     document.getElementById('blockedAllJqlText').textContent = '';
     document.getElementById('blockedAllTableArea').innerHTML = '';
-    foSetBanner('blockedAllResultStatus', 'loading', `Fetching all BLOCKEDs for ${label}…`);
+    foSetBanner('blockedAllResultStatus', 'loading', `Fetching all BLOCKEDs for ${label} from ${getSelectedPageLabel()}…`);
 
     try {
       const param = mode === 'region' ? 'region' : 'working_group';
-      const url = `${BASE}/test-results/blocked/blocked-all?${param}=${encodeURIComponent(value)}`;
+      const url = `${BASE}/test-results/blocked/blocked-all?${param}=${encodeURIComponent(value)}&page_id=${encodeURIComponent(getSelectedPageId())}`;
       const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
@@ -2474,7 +2619,7 @@
       const results = data.results || [];
       if (!results.length) {
         document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">No BLOCKED results found.</p>';
-        foSetBanner('blockedAllResultStatus', 'success', `No BLOCKEDs found for ${label} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        foSetBanner('blockedAllResultStatus', 'success', `No BLOCKEDs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
         return;
       }
 
@@ -2490,7 +2635,7 @@
         comment:       r.comment || '',
       }));
       document.getElementById('blockedAllTableArea').innerHTML = jsonToTable(mapped);
-      foSetBanner('blockedAllResultStatus', 'success', `✓ ${data.total_blocked} BLOCKED(s) for ${label} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+      foSetBanner('blockedAllResultStatus', 'success', `✓ ${data.total_blocked} BLOCKED(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
       foSetBanner('blockedAllResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
