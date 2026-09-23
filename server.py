@@ -25,8 +25,10 @@ Handles both issue types automatically:
 """
 import re
 import logging
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
+from urllib.parse import parse_qs
 
 from fastapi import HTTPException
 
@@ -911,6 +913,87 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 for key in jira_pattern.findall(" ".join(cells)):
                     if key not in key_wg:
                         key_wg[key] = current_wg
+
+        # F4 board pages often omit the older testExecutionTests(...) markers
+        # and instead carry the region next to testPlanKey in gadget metadata
+        # such as customTitle / preferences. Limit this fallback to F4 pages so
+        # existing SOP parsing stays unchanged.
+        page_title = (data.get("title") or "").strip()
+        if page_title.lower().startswith("test plan f4"):
+            region_token_patterns = [
+                ("ECE", re.compile(r"\bECE\b", re.I)),
+                ("NAR", re.compile(r"\bNAR\b|North\s+America", re.I)),
+                ("JPN", re.compile(r"\bJPN\b|Japan", re.I)),
+                ("KOR", re.compile(r"\bKOR\b|Korea", re.I)),
+                ("TWN", re.compile(r"\bTWN\b|Taiwan", re.I)),
+                ("HKG", re.compile(r"\bHKG\b|Hong\s*-?\s*Kong", re.I)),
+                ("MAC", re.compile(r"\bMAC\b|Macau", re.I)),
+            ]
+            fallback_region_votes: dict[str, list[str]] = {}
+            for macro in soup.find_all(lambda t: t.name and "structured-macro" in t.name.lower()):
+                params = {
+                    p.get("ac:name", ""): p.get_text(" ", strip=True)
+                    for p in macro.find_all(lambda t: t.name and "parameter" in t.name.lower())
+                }
+                pref_values = parse_qs(params.get("preferences", "")) if params.get("preferences") else {}
+                pref_key = (pref_values.get("testPlanKey") or [""])[0].strip()
+                macro_keys = [k for k in [params.get("testPlanKey", "").strip(), params.get("key", "").strip(), pref_key] if k]
+                if not macro_keys:
+                    continue
+                text = " ".join(v for v in params.values() if v)
+                if not text:
+                    continue
+                for token, pattern in region_token_patterns:
+                    if pattern.search(text):
+                        for key in macro_keys:
+                            fallback_region_votes.setdefault(key, []).append(token)
+                        break
+
+            for key, votes in fallback_region_votes.items():
+                if not votes:
+                    continue
+                token = Counter(votes).most_common(1)[0][0]
+                key_region[key] = token
+
+            # The F4 Applications page can carry stale row/header associations,
+            # but its gadget custom titles still encode the intended WG per
+            # testPlanKey. Limit this override to that page family so the older
+            # SOP parsing and F4 Platform behavior remain unchanged.
+            if "workstream applications" in page_title.lower():
+                f4_app_wg_patterns = [
+                    ("Navigation", re.compile(r"\bNavigation\b", re.I)),
+                    ("Digital assistant", re.compile(r"Digital\s+Assistent|Digital\s+Assistant", re.I)),
+                    ("Core HMI / GBK", re.compile(r"Core\s*HMI|CoreHMI|\bGBK\b", re.I)),
+                    ("Media / Tuner (Entertainment)", re.compile(r"Entertainment|Media\s*/?\s*Tuner", re.I)),
+                    ("App Store / 3rd Party", re.compile(r"App\s*Store|AppStore|3rd\s*Party", re.I)),
+                ]
+                fallback_wg_by_key: dict[str, str] = {}
+                for macro in soup.find_all(lambda t: t.name and "structured-macro" in t.name.lower()):
+                    params = {
+                        p.get("ac:name", ""): p.get_text(" ", strip=True)
+                        for p in macro.find_all(lambda t: t.name and "parameter" in t.name.lower())
+                    }
+                    pref_values = parse_qs(params.get("preferences", "")) if params.get("preferences") else {}
+                    pref_key = (pref_values.get("testPlanKey") or [""])[0].strip()
+                    direct_key = params.get("testPlanKey", "").strip()
+                    key_title_pairs = []
+                    pref_custom_title = (pref_values.get("customTitle") or [""])[0].strip()
+                    if pref_key:
+                        key_title_pairs.append((pref_key, pref_custom_title or params.get("title", "").strip()))
+                    if direct_key:
+                        key_title_pairs.append((direct_key, " ".join(v for v in [params.get("customTitle", ""), params.get("title", "")] if v).strip()))
+                    if not key_title_pairs:
+                        continue
+                    for key, title_text in key_title_pairs:
+                        if not title_text:
+                            continue
+                        for wg_name, wg_pattern in f4_app_wg_patterns:
+                            if wg_pattern.search(title_text):
+                                fallback_wg_by_key[key] = wg_name
+                                break
+
+                for key, wg_name in fallback_wg_by_key.items():
+                    key_wg[key] = wg_name
 
         if debug:
             combined = []

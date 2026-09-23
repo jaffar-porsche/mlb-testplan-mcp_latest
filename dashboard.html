@@ -310,6 +310,157 @@
       font-size: 0.8rem;
       color: var(--pds-color-neutral-1);
     }
+    .page-picker-wrap {
+      display: flex;
+      align-items: end;
+      gap: 10px;
+      flex-wrap: wrap;
+      max-width: 520px;
+      position: relative;
+    }
+    .page-picker-select {
+      flex: 0 1 340px;
+      min-width: 220px;
+    }
+    .page-picker-delete {
+      width: 48px;
+      min-width: 48px;
+      height: 48px;
+      padding: 0;
+      font-size: 1rem;
+      letter-spacing: 0;
+    }
+    .page-picker-add-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 10px;
+      max-width: 520px;
+    }
+    .page-picker-add-row input {
+      flex: 0 1 240px;
+      min-width: 180px;
+      height: 48px;
+      border: 1px solid var(--pds-color-neutral-2);
+      border-radius: var(--pds-border-radius-sm);
+      padding: 0 14px;
+      font-family: var(--pds-font);
+      font-size: 0.95rem;
+      color: var(--pds-color-primary);
+      background: var(--pds-color-surface);
+      outline: none;
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+    }
+    .page-picker-add-row input:focus {
+      border-color: var(--pds-color-primary);
+      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+    }
+    .page-delete-list {
+      position: absolute;
+      top: calc(100% + 8px);
+      right: 0;
+      width: min(320px, 92vw);
+      background: var(--pds-color-surface);
+      border: 1px solid var(--pds-color-neutral-3);
+      box-shadow: var(--pds-shadow-medium);
+      padding: 12px;
+      z-index: 40;
+    }
+    .page-delete-list[hidden] {
+      display: none;
+    }
+    .page-delete-list-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--pds-color-neutral-1);
+      margin-bottom: 10px;
+    }
+    .page-delete-list-items {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .page-delete-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid var(--pds-color-neutral-3);
+      padding: 10px 12px;
+      background: #fafafa;
+    }
+    .page-delete-item-text {
+      min-width: 0;
+      font-size: 0.82rem;
+      color: var(--pds-color-primary);
+      line-height: 1.35;
+    }
+    .page-delete-item-text strong {
+      display: block;
+      font-size: 0.9rem;
+    }
+    .page-delete-item-text span {
+      display: block;
+      color: var(--pds-color-neutral-1);
+    }
+    .page-delete-item-fixed {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--pds-color-neutral-1);
+      flex-shrink: 0;
+    }
+    .page-delete-item-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .page-delete-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .page-delete-rename-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+      align-items: center;
+    }
+    .page-delete-rename-row input {
+      flex: 1 1 auto;
+      min-width: 0;
+      height: 36px;
+      border: 1px solid var(--pds-color-neutral-2);
+      border-radius: var(--pds-border-radius-sm);
+      padding: 0 10px;
+      font-family: var(--pds-font);
+      font-size: 0.85rem;
+      color: var(--pds-color-primary);
+      background: var(--pds-color-surface);
+      outline: none;
+    }
+    .page-delete-rename-row input:focus {
+      border-color: var(--pds-color-primary);
+      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+    }
+    .page-delete-rename-btn {
+      height: 36px;
+      min-width: 74px;
+      padding: 0 12px;
+      letter-spacing: 0.04em;
+      font-size: 0.72rem;
+    }
+    .page-delete-item-btn {
+      min-width: 36px;
+      height: 36px;
+      padding: 0;
+      letter-spacing: 0;
+      flex-shrink: 0;
+    }
     select {
       width: 100%;
       height: 48px;
@@ -527,10 +678,19 @@
   <div class="field-row">
     <div class="field-group">
       <label class="field-label" for="pageIdSelect">Confluence Source Page</label>
-      <select id="pageIdSelect" onchange="handlePageSelectionChange()">
-        <option value="2378907792">2378907792 - Workstream Applications</option>
-        <option value="2381910576">2381910576 - Workstream Platform</option>
-      </select>
+      <div class="page-picker-wrap">
+        <select id="pageIdSelect" class="page-picker-select" onchange="handlePageSelectionChange()"></select>
+        <button class="btn btn-secondary page-picker-delete" type="button" id="deletePageIdBtn" onclick="toggleDeletePageList()" title="Manage custom page IDs" aria-label="Manage custom page IDs">&#128465;</button>
+        <div id="pageDeleteList" class="page-delete-list" hidden>
+          <div class="page-delete-list-title">Manage Page IDs</div>
+          <div id="pageDeleteListItems" class="page-delete-list-items"></div>
+        </div>
+      </div>
+      <div class="page-picker-add-row">
+        <input id="newPageIdInput" type="text" inputmode="text" placeholder="Add new page ID" aria-label="Add new page ID" />
+        <input id="newPageNameInput" type="text" inputmode="text" placeholder="Add page name" aria-label="Add page name" />
+        <button class="btn btn-secondary" type="button" onclick="addPageIdOption()">Add Page ID</button>
+      </div>
       <div class="field-help" id="pageIdHelp">Using Workstream Applications (2378907792).</div>
     </div>
   </div>
@@ -546,7 +706,7 @@
     <button class="btn btn-secondary" id="btnFailAll" onclick="openFailAllModal()">FAIL All</button>
     <button class="btn btn-secondary" id="btnBlockedAll" onclick="openBlockedAllModal()">BLOCKED All</button>
     <button class="btn btn-secondary" id="btnCloneConfluence" onclick="cloneConfluence()">Clone Confluence</button>
-    <button class="btn btn-secondary" id="btnSallyTest" onclick="testSallyConnection()" style="border-color:#0d9488;color:#0d9488;">Test Sally</button>
+    <button class="btn btn-secondary" id="btnSallyTest" onclick="testSallyConnection()" style="display:none;border-color:#0d9488;color:#0d9488;">Test Sally</button>
   </div>
   <pre id="aiPromptResult" style="display:none;white-space:pre-wrap;max-height:420px;overflow:auto;margin-top:12px;background:#0d1117;color:#c9d1d9;padding:12px;border-radius:8px;font-size:0.85rem;"></pre>
 </div>
@@ -808,10 +968,11 @@
 
 <script>
   const BASE = 'http://127.0.0.1:8080';
-  const PAGE_OPTIONS = {
+  const DEFAULT_PAGE_OPTIONS = {
     '2378907792': 'Workstream Applications',
     '2381910576': 'Workstream Platform',
   };
+  let PAGE_OPTIONS = { ...DEFAULT_PAGE_OPTIONS };
   let storedTestPlanKey = null;
 
   // ── DEMO CACHE (TEMPORARY — revert after the demo) ──────────────────────
@@ -970,8 +1131,206 @@
     return PAGE_OPTIONS[getSelectedPageId()] || getSelectedPageId();
   }
 
+  function getStoredCustomPageOptions() {
+    try {
+      const raw = window.localStorage.getItem('customPageOptions');
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        return {};
+      }
+      return parsed;
+    } catch {
+      return {};
+    }
+  }
+
+  function saveCustomPageOptions(customOptions) {
+    window.localStorage.setItem('customPageOptions', JSON.stringify(customOptions));
+  }
+
+  function getStoredPageLabelOverrides() {
+    try {
+      const raw = window.localStorage.getItem('pageLabelOverrides');
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        return {};
+      }
+      return parsed;
+    } catch {
+      return {};
+    }
+  }
+
+  function saveStoredPageLabelOverrides(overrides) {
+    window.localStorage.setItem('pageLabelOverrides', JSON.stringify(overrides));
+  }
+
+  function updateDeletePageButtonState() {
+    const deleteButton = document.getElementById('deletePageIdBtn');
+    if (!deleteButton) return;
+    deleteButton.disabled = Object.keys(PAGE_OPTIONS).length === 0;
+  }
+
+  function renderPageOptions(selectedPageId) {
+    PAGE_OPTIONS = {
+      ...DEFAULT_PAGE_OPTIONS,
+      ...getStoredCustomPageOptions(),
+      ...getStoredPageLabelOverrides(),
+    };
+    const select = document.getElementById('pageIdSelect');
+    if (!select) return;
+
+    select.innerHTML = Object.entries(PAGE_OPTIONS)
+      .map(([pageId, label]) => `<option value="${pageId}">${pageId} - ${escapeHtml(label)}</option>`)
+      .join('');
+
+    if (selectedPageId && PAGE_OPTIONS[selectedPageId]) {
+      select.value = selectedPageId;
+    }
+    if (!select.value) {
+      select.value = Object.keys(PAGE_OPTIONS)[0] || '2378907792';
+    }
+    renderDeletePageList();
+    updateDeletePageButtonState();
+    handlePageSelectionChange();
+  }
+
   function handlePageSelectionChange() {
     document.getElementById('pageIdHelp').textContent = `Using ${getSelectedPageLabel()} (${getSelectedPageId()}).`;
+    updateDeletePageButtonState();
+  }
+
+  function parsePageIdAndLabel(rawPageId, rawPageName) {
+    const trimmedIdInput = (rawPageId || '').trim();
+    const trimmedNameInput = (rawPageName || '').trim();
+
+    let pageId = trimmedIdInput;
+    let pageLabel = trimmedNameInput;
+
+    const combinedMatch = trimmedIdInput.match(/^(\d+)\s*[-:|]\s*(.+)$/);
+    if (combinedMatch) {
+      pageId = combinedMatch[1].trim();
+      if (!pageLabel) {
+        pageLabel = combinedMatch[2].trim();
+      }
+    }
+
+    return {
+      pageId,
+      pageLabel,
+    };
+  }
+
+  function addPageIdOption() {
+    const idInput = document.getElementById('newPageIdInput');
+    const nameInput = document.getElementById('newPageNameInput');
+    const { pageId, pageLabel } = parsePageIdAndLabel(idInput?.value || '', nameInput?.value || '');
+
+    if (!/^\d+$/.test(pageId)) {
+      document.getElementById('pageIdHelp').textContent = 'Enter a numeric page ID.';
+      return;
+    }
+
+    const customOptions = getStoredCustomPageOptions();
+    const nextLabel = pageLabel || PAGE_OPTIONS[pageId] || 'Custom Page';
+    if (!DEFAULT_PAGE_OPTIONS[pageId]) {
+      customOptions[pageId] = nextLabel;
+      saveCustomPageOptions(customOptions);
+    } else if (pageLabel) {
+      const overrides = getStoredPageLabelOverrides();
+      overrides[pageId] = pageLabel;
+      saveStoredPageLabelOverrides(overrides);
+    }
+
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = '';
+    renderPageOptions(pageId);
+  }
+
+  function renderDeletePageList() {
+    const container = document.getElementById('pageDeleteListItems');
+    if (!container) return;
+    const customOptions = getStoredCustomPageOptions();
+    const entries = Object.entries(PAGE_OPTIONS);
+    if (!entries.length) {
+      container.innerHTML = '<p class="empty" style="margin:0;">No page IDs available.</p>';
+      return;
+    }
+    container.innerHTML = entries.map(([pageId, label]) => {
+      const isDefault = !!DEFAULT_PAGE_OPTIONS[pageId];
+      const actionMarkup = isDefault
+        ? '<span class="page-delete-item-fixed">Default</span>'
+        : `<button class="btn btn-secondary page-delete-item-btn" type="button" onclick='removeCustomPageId(${JSON.stringify(pageId)})' title="Delete ${escapeHtml(pageId)}" aria-label="Delete ${escapeHtml(pageId)}">&times;</button>`;
+      const badgeText = isDefault ? 'Built-in page ID' : (customOptions[pageId] || 'Custom Page');
+      return `
+      <div class="page-delete-item">
+        <div class="page-delete-item-main">
+          <div class="page-delete-item-text">
+            <strong>${escapeHtml(pageId)}</strong>
+            <span>${escapeHtml(label)} · ${escapeHtml(badgeText)}</span>
+          </div>
+          <div class="page-delete-rename-row">
+            <input id="pageRenameInput_${escapeHtml(pageId)}" type="text" value="${escapeHtml(label)}" aria-label="Rename page ${escapeHtml(pageId)}" />
+            <button class="btn btn-secondary page-delete-rename-btn" type="button" onclick='renameManagedPageId(${JSON.stringify(pageId)})'>Rename</button>
+          </div>
+        </div>
+        <div class="page-delete-item-actions">${actionMarkup}</div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  function toggleDeletePageList() {
+    const panel = document.getElementById('pageDeleteList');
+    if (!panel) return;
+    if (!panel.hidden) {
+      panel.hidden = true;
+      return;
+    }
+    renderDeletePageList();
+    panel.hidden = false;
+  }
+
+  function removeCustomPageId(pageId) {
+    const customOptions = getStoredCustomPageOptions();
+    const overrides = getStoredPageLabelOverrides();
+    delete customOptions[pageId];
+    delete overrides[pageId];
+    saveCustomPageOptions(customOptions);
+    saveStoredPageLabelOverrides(overrides);
+    const nextPageId = getSelectedPageId() === pageId ? Object.keys(DEFAULT_PAGE_OPTIONS)[0] : getSelectedPageId();
+    renderPageOptions(nextPageId);
+    const panel = document.getElementById('pageDeleteList');
+    if (panel && Object.keys(getStoredCustomPageOptions()).length === 0) {
+      panel.hidden = true;
+    }
+    document.getElementById('pageIdHelp').textContent = `Removed page ID ${pageId}. Using ${getSelectedPageLabel()} (${getSelectedPageId()}).`;
+  }
+
+  function renameManagedPageId(pageId) {
+    const input = document.getElementById(`pageRenameInput_${pageId}`);
+    const nextLabel = (input?.value || '').trim();
+    if (!nextLabel) {
+      document.getElementById('pageIdHelp').textContent = `Enter a page name for ${pageId}.`;
+      return;
+    }
+
+    if (DEFAULT_PAGE_OPTIONS[pageId]) {
+      const overrides = getStoredPageLabelOverrides();
+      overrides[pageId] = nextLabel;
+      saveStoredPageLabelOverrides(overrides);
+    } else {
+      const customOptions = getStoredCustomPageOptions();
+      customOptions[pageId] = nextLabel;
+      saveCustomPageOptions(customOptions);
+    }
+
+    renderPageOptions(getSelectedPageId() === pageId ? pageId : getSelectedPageId());
+    const panel = document.getElementById('pageDeleteList');
+    if (panel) {
+      panel.hidden = false;
+    }
+    document.getElementById('pageIdHelp').textContent = `Updated page name for ${pageId} to ${nextLabel}.`;
   }
 
   async function fetchConfluenceTestPlans(filters = {}) {
@@ -2641,6 +3000,8 @@
       document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
     }
   }
+
+  renderPageOptions(getSelectedPageId());
 
 </script>
 </div><!-- /.pds-page -->
