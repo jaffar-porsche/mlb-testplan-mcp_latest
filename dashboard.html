@@ -1709,14 +1709,53 @@
     });
     const resp = await fetch(`${BASE}/confluence/testplans?${params.toString()}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    return data.test_plans || [];
+    return await resp.json();
   }
 
   function extractWorkingGroups(plans) {
     return [...new Set((plans || [])
       .map(item => item.working_group || item.workstream || '')
       .filter(Boolean))].sort((left, right) => left.localeCompare(right));
+  }
+
+  const REGION_BUTTON_ORDER = [
+    'Testing ECE',
+    'Testing NAR',
+    'Testing JPN',
+    'Testing KOR',
+    'Testing TWN',
+    'Testing Hong-Kong',
+    'Testing Macau',
+  ];
+
+  const REGION_BUTTON_LABELS = {
+    'Testing ECE': 'ECE',
+    'Testing NAR': 'NAR',
+    'Testing JPN': 'JPN',
+    'Testing KOR': 'KOR',
+    'Testing TWN': 'TWN',
+    'Testing Hong-Kong': 'Hong Kong',
+    'Testing Macau': 'Macau',
+  };
+
+  function extractRegions(plans) {
+    const seen = new Set();
+    const ordered = [];
+    (plans || []).forEach(item => {
+      const region = (item.region || item.location || '').trim();
+      if (!region || region === '?') return;
+      if (seen.has(region)) return;
+      seen.add(region);
+      ordered.push(region);
+    });
+    return ordered.sort((left, right) => {
+      const leftIndex = REGION_BUTTON_ORDER.indexOf(left);
+      const rightIndex = REGION_BUTTON_ORDER.indexOf(right);
+      if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
+      if (leftIndex === -1) return 1;
+      if (rightIndex === -1) return -1;
+      return leftIndex - rightIndex;
+    });
   }
 
   function escapeHtml(value) {
@@ -1750,6 +1789,19 @@
     ).join('');
   }
 
+  function renderFailAllRegions(regions, pageContext) {
+    const container = document.getElementById('failAllRegionButtons');
+    if (!regions.length) {
+      const message = pageContext?.message || 'No explicit regions were found for the selected page. Use By Working Group.';
+      container.innerHTML = `<p class="empty" style="margin:0;">${escapeHtml(message)}</p>`;
+      return;
+    }
+    container.innerHTML = regions.map(region => {
+      const label = REGION_BUTTON_LABELS[region] || region.replace(/^Testing\s+/i, '');
+      return `<button class="btn btn-secondary" onclick='failAllRun("region", ${JSON.stringify(region)}, ${JSON.stringify(label)})'>${escapeHtml(label)}</button>`;
+    }).join('');
+  }
+
   function renderBlockedAllWorkingGroups(groups) {
     const container = document.getElementById('blockedAllWgButtons');
     if (!groups.length) {
@@ -1761,25 +1813,52 @@
     ).join('');
   }
 
+  function renderBlockedAllRegions(regions, pageContext) {
+    const container = document.getElementById('blockedAllRegionButtons');
+    if (!regions.length) {
+      const message = pageContext?.message || 'No explicit regions were found for the selected page. Use By Working Group.';
+      container.innerHTML = `<p class="empty" style="margin:0;">${escapeHtml(message)}</p>`;
+      return;
+    }
+    container.innerHTML = regions.map(region => {
+      const label = REGION_BUTTON_LABELS[region] || region.replace(/^Testing\s+/i, '');
+      return `<button class="btn btn-secondary" onclick='blockedAllRun("region", ${JSON.stringify(region)}, ${JSON.stringify(label)})'>${escapeHtml(label)}</button>`;
+    }).join('');
+  }
+
   async function loadWorkingGroupsForPriority(region) {
     const container = document.getElementById('priorityWgButtons');
     container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
-    const plans = await fetchConfluenceTestPlans({ region });
-    renderPriorityWorkingGroups(extractWorkingGroups(plans));
+    const data = await fetchConfluenceTestPlans({ region });
+    renderPriorityWorkingGroups(extractWorkingGroups(data.test_plans || []));
   }
 
   async function loadWorkingGroupsForFailAll() {
     const container = document.getElementById('failAllWgButtons');
     container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
-    const plans = await fetchConfluenceTestPlans();
-    renderFailAllWorkingGroups(extractWorkingGroups(plans));
+    const data = await fetchConfluenceTestPlans();
+    renderFailAllWorkingGroups(extractWorkingGroups(data.test_plans || []));
+  }
+
+  async function loadRegionsForFailAll() {
+    const container = document.getElementById('failAllRegionButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading regions…</span>';
+    const data = await fetchConfluenceTestPlans();
+    renderFailAllRegions(extractRegions(data.test_plans || []), data.page_context || null);
   }
 
   async function loadWorkingGroupsForBlockedAll() {
     const container = document.getElementById('blockedAllWgButtons');
     container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
-    const plans = await fetchConfluenceTestPlans();
-    renderBlockedAllWorkingGroups(extractWorkingGroups(plans));
+    const data = await fetchConfluenceTestPlans();
+    renderBlockedAllWorkingGroups(extractWorkingGroups(data.test_plans || []));
+  }
+
+  async function loadRegionsForBlockedAll() {
+    const container = document.getElementById('blockedAllRegionButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading regions…</span>';
+    const data = await fetchConfluenceTestPlans();
+    renderBlockedAllRegions(extractRegions(data.test_plans || []), data.page_context || null);
   }
 
   // ── Tool 1 – parse keywords (now also resolves test_plan_key via Confluence) ─
@@ -2932,9 +3011,16 @@
   }
 
   async function foSelectRegion(region, label) {
-    document.querySelectorAll('#foRegionButtons button').forEach(b => { b.style.background=''; b.style.color='#6366f1'; });
+    document.querySelectorAll('#foRegionButtons button').forEach(b => {
+      b.style.background = '';
+      b.style.color = '#6366f1';
+      b.style.fontWeight = '600';
+      b.style.boxShadow = 'none';
+    });
     event.currentTarget.style.background = '#6366f1';
     event.currentTarget.style.color = '#fff';
+    event.currentTarget.style.fontWeight = '800';
+    event.currentTarget.style.boxShadow = '0 0 0 2px rgba(99,102,241,.28)';
 
     const picker = document.getElementById('foPickerCard');
     const result = document.getElementById('foResultCard');
@@ -2947,11 +3033,15 @@
     picker.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
-      const plans = await fetchConfluenceTestPlans({ region });
+      const data = await fetchConfluenceTestPlans({ region });
+      const plans = data.test_plans || [];
+      const pageNote = data.page_context?.message || data.message || '';
 
       foSetBanner('foPickerStatus', plans.length ? 'success' : 'error',
-        plans.length ? `✓ ${plans.length} test plan(s) found. Click one to load.` : 'No test plans found for this region.');
-      document.getElementById('foPickerSubtitle').textContent = `${plans.length} test plan(s) in ${label}`;
+        plans.length ? (pageNote || `✓ ${plans.length} test plan(s) found. Click one to load.`) : 'No test plans found for this region.');
+      document.getElementById('foPickerSubtitle').textContent = pageNote
+        ? `${plans.length} working-group test plan(s) shown for this page.`
+        : `${plans.length} test plan(s) in ${label}`;
 
       const grid = document.getElementById('foPickerGrid');
       grid.innerHTML = '';
@@ -3319,6 +3409,7 @@
     document.getElementById('failAllModeRegionBtn').style.color = '';
     document.getElementById('failAllModeWgBtn').style.background = '';
     document.getElementById('failAllModeWgBtn').style.color = '';
+    document.getElementById('failAllRegionButtons').innerHTML = '';
     document.getElementById('failAllWgButtons').innerHTML = '';
     document.getElementById('failAllModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _failAllEscHandler);
@@ -3346,7 +3437,9 @@
     regionBtn.style.color = mode === 'region' ? '#fff' : '';
     wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
     wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
-    if (mode === 'working_group') {
+    if (mode === 'region') {
+      await loadRegionsForFailAll();
+    } else if (mode === 'working_group') {
       await loadWorkingGroupsForFailAll();
     }
   }
@@ -3372,6 +3465,7 @@
       const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      const pageNote = data.page_context?.message || data.message || '';
 
       document.getElementById('failAllJqlText').textContent = data.combined_jql || '';
 
@@ -3380,7 +3474,7 @@
       window._lastFailAllLabel = label;
       if (!results.length) {
         document.getElementById('failAllTableArea').innerHTML = '<p class="empty">No FAIL results found.</p>';
-        foSetBanner('failAllResultStatus', 'success', `No FAILs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        foSetBanner('failAllResultStatus', 'success', pageNote || `No FAILs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
         return;
       }
 
@@ -3397,7 +3491,7 @@
       }));
       document.getElementById('failAllTableArea').innerHTML = jsonToTable(mapped);
       document.getElementById('failAllExportBtn').style.display = 'inline-flex';
-      foSetBanner('failAllResultStatus', 'success', `✓ ${data.total_fail} FAIL(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+      foSetBanner('failAllResultStatus', 'success', pageNote || `✓ ${data.total_fail} FAIL(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
       window._lastFailAllResults = [];
       window._lastFailAllLabel = '';
@@ -3420,6 +3514,7 @@
     document.getElementById('blockedAllModeRegionBtn').style.color = '';
     document.getElementById('blockedAllModeWgBtn').style.background = '';
     document.getElementById('blockedAllModeWgBtn').style.color = '';
+    document.getElementById('blockedAllRegionButtons').innerHTML = '';
     document.getElementById('blockedAllWgButtons').innerHTML = '';
     document.getElementById('blockedAllModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _blockedAllEscHandler);
@@ -3447,7 +3542,9 @@
     regionBtn.style.color = mode === 'region' ? '#fff' : '';
     wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
     wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
-    if (mode === 'working_group') {
+    if (mode === 'region') {
+      await loadRegionsForBlockedAll();
+    } else if (mode === 'working_group') {
       await loadWorkingGroupsForBlockedAll();
     }
   }
@@ -3473,6 +3570,7 @@
       const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      const pageNote = data.page_context?.message || data.message || '';
 
       document.getElementById('blockedAllJqlText').textContent = data.combined_jql || '';
 
@@ -3481,7 +3579,7 @@
       window._lastBlockedAllLabel = label;
       if (!results.length) {
         document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">No BLOCKED results found.</p>';
-        foSetBanner('blockedAllResultStatus', 'success', `No BLOCKEDs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        foSetBanner('blockedAllResultStatus', 'success', pageNote || `No BLOCKEDs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
         return;
       }
 
@@ -3498,7 +3596,7 @@
       }));
       document.getElementById('blockedAllTableArea').innerHTML = jsonToTable(mapped);
       document.getElementById('blockedAllExportBtn').style.display = 'inline-flex';
-      foSetBanner('blockedAllResultStatus', 'success', `✓ ${data.total_blocked} BLOCKED(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+      foSetBanner('blockedAllResultStatus', 'success', pageNote || `✓ ${data.total_blocked} BLOCKED(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
       window._lastBlockedAllResults = [];
       window._lastBlockedAllLabel = '';

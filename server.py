@@ -839,6 +839,22 @@ def _extract_region_token_from_text(text: str) -> str:
     return ""
 
 
+def _build_market_context(page_title: str, body: str, has_explicit_regions: bool) -> dict | None:
+    """Describe pages that are working-group scoped rather than market/region scoped."""
+    if has_explicit_regions:
+        return None
+    haystack = f"{page_title or ''}\n{body or ''}"
+    if re.search(r"\bRDW\b", haystack, re.I):
+        return {
+            "mode": "RDW",
+            "message": "RDW market found on this page. Region filters are ignored; showing working-group test plans.",
+        }
+    return {
+        "mode": "NO_MARKET",
+        "message": "No Market is found on this page. Region filters are ignored; showing working-group test plans.",
+    }
+
+
 def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, page_id: str = None):
     """
     Fetch the Confluence SOP page and find the Test Plan key that matches the
@@ -1016,6 +1032,8 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                     if key not in key_wg:
                         key_wg[key] = current_wg
 
+        explicit_region_found = bool(key_region)
+
         # F4 board pages often omit the older testExecutionTests(...) markers
         # and instead carry the region next to testPlanKey in gadget metadata
         # such as customTitle / preferences. Limit this fallback to F4 pages so
@@ -1097,15 +1115,17 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 for key, wg_name in fallback_wg_by_key.items():
                     key_wg[key] = wg_name
 
+        market_context = _build_market_context(page_title, body, explicit_region_found)
+
         # Golden Sample pages can expose valid test plan keys and working
         # groups while omitting a machine-readable region marker in the page
-        # storage. Recover those blanks from the Jira issue summary before any
-        # region filtering is applied.
+        # storage. Recover those blanks from the Jira issue summary only when
+        # the page already exposes at least one explicit region marker.
         missing_region_keys = [
             key for key in set(list(key_region.keys()) + list(key_wg.keys()))
             if key not in key_region and key_wg.get(key)
         ]
-        if missing_region_keys:
+        if missing_region_keys and explicit_region_found:
             for key, summary in _fetch_issue_summaries(missing_region_keys).items():
                 region_token = _extract_region_token_from_text(summary)
                 if region_token:
@@ -1118,6 +1138,7 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                     "key": key,
                     "region": key_region.get(key, "?"),
                     "working_group": key_wg.get(key, "?"),
+                    "market_mode": market_context["mode"] if market_context else None,
                 })
             return sorted(combined, key=lambda x: (x["region"], x["key"]))
 
@@ -1141,6 +1162,8 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 region_token = key_region.get(key, "")
                 wg = key_wg.get(key, "")
                 region_match = (not location_token) or (region_token == location_token)
+                if market_context and location_token:
+                    region_match = True
                 wg_match = (not working_group) or (
                     working_group.lower() in wg.lower()
                     or wg.lower() in working_group.lower()
@@ -1148,8 +1171,10 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 if region_match and wg_match:
                     matches.append({
                         "test_plan_key": key,
-                        "region": _TOKEN_TO_LOCATION.get(region_token, region_token),
+                        "region": "" if market_context else _TOKEN_TO_LOCATION.get(region_token, region_token),
                         "working_group": wg,
+                        "market_mode": market_context["mode"] if market_context else None,
+                        "market_message": market_context["message"] if market_context else None,
                     })
             matches.sort(key=lambda x: (x["region"], x["working_group"], x["test_plan_key"]))
             return matches
@@ -1556,9 +1581,15 @@ def get_confluence_testplans(
 
     seen_keys: set = set()
     matches: list = []
+    page_context = None
     for _pid in _CONFLUENCE_PAGE_IDS:   
         _results = _extract_test_plan_key_from_confluence(filters, page_id=_pid) or []
         for item in _results:
+            if not page_context and item.get("market_mode"):
+                page_context = {
+                    "mode": item.get("market_mode"),
+                    "message": item.get("market_message"),
+                }
             key = item.get("test_plan_key")
             if key and key not in seen_keys:
                 seen_keys.add(key)
@@ -1571,9 +1602,10 @@ def get_confluence_testplans(
             "region_raw": region or None,
             "region_canonical": canonical_region or None,
         },
+        "page_context": page_context,
         "total": len(matches),
         "test_plans": matches,
-        "message": None if matches else "No test plans found for the given filters.",
+        "message": page_context.get("message") if page_context else (None if matches else "No test plans found for the given filters."),
     }
 
 
@@ -3420,15 +3452,21 @@ def get_fail_all(
     seen_keys: set = set()
     test_plans: list = []
     key_working_group: dict[str, str] = {}
+    page_context = None
     page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
     for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            if not page_context and item.get("market_mode"):
+                page_context = {
+                    "mode": item.get("market_mode"),
+                    "message": item.get("market_message"),
+                }
             key = item.get("test_plan_key")
             wg = item.get("working_group", "") or ""
             reg = item.get("region", "") or ""
             if mode == "region" and not wg:
                 continue
-            if mode == "working_group" and not reg:
+            if mode == "working_group" and not reg and not page_context:
                 continue
             if key and key not in seen_keys:
                 seen_keys.add(key)
@@ -3442,11 +3480,12 @@ def get_fail_all(
             "mode": mode,
             "region": canonical if mode == "region" else None,
             "working_group": canonical if mode == "working_group" else None,
+            "page_context": page_context,
             "test_plans_checked": [],
             "combined_jql": combined_jql,
             "total_fail": 0,
             "results": [],
-            "message": "No test plans found for the given region/working group.",
+            "message": page_context.get("message") if page_context else "No test plans found for the given region/working group.",
             "elapsed_seconds": round(time.time() - _start_time, 2),
         }
 
@@ -3496,10 +3535,12 @@ def get_fail_all(
         "mode": mode,
         "region": canonical if mode == "region" else None,
         "working_group": canonical if mode == "working_group" else None,
+        "page_context": page_context,
         "test_plans_checked": test_plans,
         "combined_jql": combined_jql,
         "total_fail": len(results),
         "results": results,
+        "message": page_context.get("message") if page_context else None,
         "elapsed_seconds": round(time.time() - _start_time, 2),
     }
 
@@ -3561,15 +3602,21 @@ def get_blocked_all(
     seen_keys: set = set()
     test_plans: list = []
     key_working_group: dict[str, str] = {}
+    page_context = None
     page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
     for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            if not page_context and item.get("market_mode"):
+                page_context = {
+                    "mode": item.get("market_mode"),
+                    "message": item.get("market_message"),
+                }
             key = item.get("test_plan_key")
             wg = item.get("working_group", "") or ""
             reg = item.get("region", "") or ""
             if mode == "region" and not wg:
                 continue
-            if mode == "working_group" and not reg:
+            if mode == "working_group" and not reg and not page_context:
                 continue
             if key and key not in seen_keys:
                 seen_keys.add(key)
@@ -3583,11 +3630,12 @@ def get_blocked_all(
             "mode": mode,
             "region": canonical if mode == "region" else None,
             "working_group": canonical if mode == "working_group" else None,
+            "page_context": page_context,
             "test_plans_checked": [],
             "combined_jql": combined_jql,
             "total_blocked": 0,
             "results": [],
-            "message": "No test plans found for the given region/working group.",
+            "message": page_context.get("message") if page_context else "No test plans found for the given region/working group.",
             "elapsed_seconds": round(time.time() - _start_time, 2),
         }
 
@@ -3630,10 +3678,12 @@ def get_blocked_all(
         "mode": mode,
         "region": canonical if mode == "region" else None,
         "working_group": canonical if mode == "working_group" else None,
+        "page_context": page_context,
         "test_plans_checked": test_plans,
         "combined_jql": combined_jql,
         "total_blocked": len(results),
         "results": results,
+        "message": page_context.get("message") if page_context else None,
         "elapsed_seconds": round(time.time() - _start_time, 2),
     }
 
