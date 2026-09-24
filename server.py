@@ -820,6 +820,25 @@ def normalize_text(text: str) -> str:
     return text.strip()
 
 
+def _extract_region_token_from_text(text: str) -> str:
+    """Infer a canonical region token from free-form text such as a Jira summary."""
+    if not text:
+        return ""
+    region_patterns = [
+        ("ECE", re.compile(r"\bECE\b|Testing\s+ECE", re.I)),
+        ("NAR", re.compile(r"\bNAR\b|North\s+America|Testing\s+NAR", re.I)),
+        ("JPN", re.compile(r"\bJPN\b|Japan|Testing\s+JPN", re.I)),
+        ("KOR", re.compile(r"\bKOR\b|Korea|Testing\s+KOR", re.I)),
+        ("TWN", re.compile(r"\bTWN\b|Taiwan|Testing\s+TWN", re.I)),
+        ("HKG", re.compile(r"\bHKG\b|Hong\s*-?\s*Kong|Testing\s+Hong\s*-?\s*Kong", re.I)),
+        ("MAC", re.compile(r"\bMAC\b|Macau|Testing\s+Macau", re.I)),
+    ]
+    for token, pattern in region_patterns:
+        if pattern.search(text):
+            return token
+    return ""
+
+
 def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, page_id: str = None):
     """
     Fetch the Confluence SOP page and find the Test Plan key that matches the
@@ -1077,6 +1096,20 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
 
                 for key, wg_name in fallback_wg_by_key.items():
                     key_wg[key] = wg_name
+
+        # Golden Sample pages can expose valid test plan keys and working
+        # groups while omitting a machine-readable region marker in the page
+        # storage. Recover those blanks from the Jira issue summary before any
+        # region filtering is applied.
+        missing_region_keys = [
+            key for key in set(list(key_region.keys()) + list(key_wg.keys()))
+            if key not in key_region and key_wg.get(key)
+        ]
+        if missing_region_keys:
+            for key, summary in _fetch_issue_summaries(missing_region_keys).items():
+                region_token = _extract_region_token_from_text(summary)
+                if region_token:
+                    key_region[key] = region_token
 
         if debug:
             combined = []

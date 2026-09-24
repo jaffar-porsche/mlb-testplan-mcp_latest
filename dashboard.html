@@ -1048,6 +1048,9 @@
         <summary style="cursor:pointer;font-weight:700;color:var(--pds-color-neutral-1);">Combined JQL</summary>
         <code id="failAllJqlText" style="display:block;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--pds-color-primary);"></code>
       </details>
+      <div style="display:flex;justify-content:flex-end;margin:0 0 12px;">
+        <button class="btn btn-primary" id="failAllExportBtn" onclick="exportFailAllExcel()" style="display:none;">Export Excel</button>
+      </div>
       <div id="failAllTableArea"></div>
     </div>
   </div>
@@ -1095,6 +1098,9 @@
         <summary style="cursor:pointer;font-weight:700;color:var(--pds-color-neutral-1);">Combined JQL</summary>
         <code id="blockedAllJqlText" style="display:block;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--pds-color-primary);"></code>
       </details>
+      <div style="display:flex;justify-content:flex-end;margin:0 0 12px;">
+        <button class="btn btn-primary" id="blockedAllExportBtn" onclick="exportBlockedAllExcel()" style="display:none;">Export Excel</button>
+      </div>
       <div id="blockedAllTableArea"></div>
     </div>
   </div>
@@ -2800,6 +2806,63 @@
     XLSX.writeFile(wb, filename);
   }
 
+  function exportFailAllExcel() {
+    const rows = window._lastFailAllResults || [];
+    const label = window._lastFailAllLabel || 'all';
+    if (!rows.length) { alert('No data to export.'); return; }
+
+    const headers = ['Test Key', 'Test Plan Key', 'Working Group', 'Description', 'Executed On', 'Tester', 'Test Exec Key', 'KPM ID', 'Comment'];
+    const wsData = [headers, ...rows.map(r => [
+      r.test_key || '',
+      r.test_plan_key || '',
+      r.working_group || '',
+      r.summary || '',
+      r.executed_on || '',
+      r.tester_name || '',
+      r.test_exec_key || '',
+      r.kpm_id || '',
+      r.comment || '',
+    ])];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [16, 18, 24, 56, 20, 24, 18, 14, 56].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'FAIL All');
+    XLSX.writeFile(wb, `fail_all_${sanitizeFilenamePart(label)}.xlsx`);
+  }
+
+  function exportBlockedAllExcel() {
+    const rows = window._lastBlockedAllResults || [];
+    const label = window._lastBlockedAllLabel || 'all';
+    if (!rows.length) { alert('No data to export.'); return; }
+
+    const headers = ['Test Key', 'Test Plan Key', 'Working Group', 'Description', 'Executed On', 'Tester', 'Test Exec Key', 'KPM ID', 'Comment'];
+    const wsData = [headers, ...rows.map(r => [
+      r.test_key || '',
+      r.test_plan_key || '',
+      r.working_group || '',
+      r.summary || '',
+      r.executed_on || '',
+      r.tester_name || '',
+      r.test_exec_key || '',
+      r.kpm_id || '',
+      r.comment || '',
+    ])];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [16, 18, 24, 56, 20, 24, 18, 14, 56].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'BLOCKED All');
+    XLSX.writeFile(wb, `blocked_all_${sanitizeFilenamePart(label)}.xlsx`);
+  }
+
+  function sanitizeFilenamePart(value) {
+    return String(value || 'all')
+      .trim()
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '') || 'all';
+  }
+
   function exportFailCSV() {
     const rows = window._lastFailResults || [];
     const name = (storedTestPlanKey || 'testplan') + '_Failed.csv';
@@ -3246,9 +3309,12 @@
 
   function openFailAllModal() {
     _failAllMode = null;
+    window._lastFailAllResults = [];
+    window._lastFailAllLabel = '';
     document.getElementById('failAllRegionStep').style.display = 'none';
     document.getElementById('failAllWgStep').style.display = 'none';
     document.getElementById('failAllResultStep').style.display = 'none';
+    document.getElementById('failAllExportBtn').style.display = 'none';
     document.getElementById('failAllModeRegionBtn').style.background = '';
     document.getElementById('failAllModeRegionBtn').style.color = '';
     document.getElementById('failAllModeWgBtn').style.background = '';
@@ -3295,6 +3361,7 @@
 
     const resultStep = document.getElementById('failAllResultStep');
     resultStep.style.display = 'block';
+    document.getElementById('failAllExportBtn').style.display = 'none';
     document.getElementById('failAllJqlText').textContent = '';
     document.getElementById('failAllTableArea').innerHTML = '';
     foSetBanner('failAllResultStatus', 'loading', `Fetching all FAILs for ${label} from ${getSelectedPageLabel()}…`);
@@ -3309,6 +3376,8 @@
       document.getElementById('failAllJqlText').textContent = data.combined_jql || '';
 
       const results = data.results || [];
+      window._lastFailAllResults = results;
+      window._lastFailAllLabel = label;
       if (!results.length) {
         document.getElementById('failAllTableArea').innerHTML = '<p class="empty">No FAIL results found.</p>';
         foSetBanner('failAllResultStatus', 'success', `No FAILs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
@@ -3327,8 +3396,11 @@
         comment:       r.comment || '',
       }));
       document.getElementById('failAllTableArea').innerHTML = jsonToTable(mapped);
+      document.getElementById('failAllExportBtn').style.display = 'inline-flex';
       foSetBanner('failAllResultStatus', 'success', `✓ ${data.total_fail} FAIL(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
+      window._lastFailAllResults = [];
+      window._lastFailAllLabel = '';
       foSetBanner('failAllResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('failAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
     }
@@ -3338,9 +3410,12 @@
 
   function openBlockedAllModal() {
     _blockedAllMode = null;
+    window._lastBlockedAllResults = [];
+    window._lastBlockedAllLabel = '';
     document.getElementById('blockedAllRegionStep').style.display = 'none';
     document.getElementById('blockedAllWgStep').style.display = 'none';
     document.getElementById('blockedAllResultStep').style.display = 'none';
+    document.getElementById('blockedAllExportBtn').style.display = 'none';
     document.getElementById('blockedAllModeRegionBtn').style.background = '';
     document.getElementById('blockedAllModeRegionBtn').style.color = '';
     document.getElementById('blockedAllModeWgBtn').style.background = '';
@@ -3387,6 +3462,7 @@
 
     const resultStep = document.getElementById('blockedAllResultStep');
     resultStep.style.display = 'block';
+    document.getElementById('blockedAllExportBtn').style.display = 'none';
     document.getElementById('blockedAllJqlText').textContent = '';
     document.getElementById('blockedAllTableArea').innerHTML = '';
     foSetBanner('blockedAllResultStatus', 'loading', `Fetching all BLOCKEDs for ${label} from ${getSelectedPageLabel()}…`);
@@ -3401,6 +3477,8 @@
       document.getElementById('blockedAllJqlText').textContent = data.combined_jql || '';
 
       const results = data.results || [];
+      window._lastBlockedAllResults = results;
+      window._lastBlockedAllLabel = label;
       if (!results.length) {
         document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">No BLOCKED results found.</p>';
         foSetBanner('blockedAllResultStatus', 'success', `No BLOCKEDs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
@@ -3419,8 +3497,11 @@
         comment:       r.comment || '',
       }));
       document.getElementById('blockedAllTableArea').innerHTML = jsonToTable(mapped);
+      document.getElementById('blockedAllExportBtn').style.display = 'inline-flex';
       foSetBanner('blockedAllResultStatus', 'success', `✓ ${data.total_blocked} BLOCKED(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
+      window._lastBlockedAllResults = [];
+      window._lastBlockedAllLabel = '';
       foSetBanner('blockedAllResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
     }
