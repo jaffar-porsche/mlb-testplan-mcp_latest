@@ -310,6 +310,41 @@
       font-size: 0.8rem;
       color: var(--pds-color-neutral-1);
     }
+    .secret-editor-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+    .secret-editor-row .field-group {
+      min-width: 220px;
+    }
+    .secret-editor-input {
+      width: 100%;
+      height: 48px;
+      border: 1px solid var(--pds-color-neutral-2);
+      border-radius: var(--pds-border-radius-sm);
+      padding: 0 14px;
+      font-family: var(--pds-font);
+      font-size: 0.95rem;
+      color: var(--pds-color-primary);
+      background: var(--pds-color-surface);
+      outline: none;
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+    }
+    .secret-editor-input:focus {
+      border-color: var(--pds-color-primary);
+      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+    }
+    .secret-editor-note {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--pds-color-neutral-1);
+    }
+    .secret-editor-note strong {
+      color: var(--pds-color-primary);
+    }
     .page-picker-wrap {
       display: flex;
       align-items: stretch;
@@ -881,6 +916,36 @@
           <div id="pageDeleteListItems" class="page-delete-list-items"></div>
         </div>
       </div>
+      <div id="patModalOverlay" class="page-rename-overlay" onclick="closePatModal(event)" hidden>
+        <div class="page-rename-dialog" onclick="event.stopPropagation()">
+          <div class="page-rename-dialog-header">
+            <div>
+              <h3 class="page-rename-dialog-title">Update PAT</h3>
+              <p class="page-rename-dialog-subtitle">Update the local Jira or Confluence PAT. Azure Container Apps still need their own PAT change in Azure separately.</p>
+            </div>
+            <button class="page-rename-dialog-close" type="button" onclick="closePatModal()" aria-label="Close PAT dialog">&times;</button>
+          </div>
+          <div class="secret-editor-row">
+            <div class="field-group">
+              <label class="field-label" for="patTypeSelect">PAT Type</label>
+              <select id="patTypeSelect">
+                <option value="jira">Jira</option>
+                <option value="confluence">Confluence</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="patValueInput">PAT Value</label>
+              <input id="patValueInput" class="secret-editor-input" type="password" placeholder="Paste new PAT value" autocomplete="off" />
+            </div>
+          </div>
+          <div id="patUpdateStatus" class="status" style="margin-top:16px;margin-bottom:0;"></div>
+          <p class="secret-editor-note"><strong>Local only:</strong> this updates the local service <code>.env</code> file and the running dashboard process where possible.</p>
+          <div class="page-rename-dialog-actions">
+            <button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick="closePatModal()">Cancel</button>
+            <button class="btn btn-primary" id="btnUpdatePat" type="button" onclick="updatePatConfig()">Update</button>
+          </div>
+        </div>
+      </div>
       <div id="pageRenameModalOverlay" class="page-rename-overlay" onclick="closePageRenameModal(event)" hidden>
         <div class="page-rename-dialog" onclick="event.stopPropagation()">
           <div class="page-rename-dialog-header">
@@ -929,6 +994,7 @@
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 1l9 5-9 5V1z" fill="currentColor"/></svg>
       Analyze
     </button>
+    <button class="btn btn-secondary" type="button" onclick="openPatModal()">Update PAT</button>
     <button class="btn btn-secondary" id="btnAiPrompt" onclick="runAiPrompt()" style="border-color:#8b5cf6;color:#8b5cf6;">Ask AI</button>
     <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="display:none;border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
     <button class="btn btn-secondary" id="btnPriority" onclick="openPriorityModal()">Priority</button>
@@ -2292,6 +2358,68 @@
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runAnalysis();
   });
 
+  function openPatModal() {
+    const overlay = document.getElementById('patModalOverlay');
+    const input = document.getElementById('patValueInput');
+    const statusBox = document.getElementById('patUpdateStatus');
+    if (statusBox) {
+      statusBox.className = 'status';
+      statusBox.textContent = '';
+    }
+    if (overlay) overlay.hidden = false;
+    if (input) input.focus();
+  }
+
+  function closePatModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'patModalOverlay') return;
+    const overlay = document.getElementById('patModalOverlay');
+    const input = document.getElementById('patValueInput');
+    const statusBox = document.getElementById('patUpdateStatus');
+    if (overlay) overlay.hidden = true;
+    if (input) input.value = '';
+    if (statusBox) {
+      statusBox.className = 'status';
+      statusBox.textContent = '';
+    }
+  }
+
+  async function updatePatConfig() {
+    const patType = document.getElementById('patTypeSelect').value;
+    const patValueInput = document.getElementById('patValueInput');
+    const patValue = patValueInput.value.trim();
+    const statusBox = document.getElementById('patUpdateStatus');
+    const button = document.getElementById('btnUpdatePat');
+
+    if (!patValue) {
+      statusBox.className = 'status show error';
+      statusBox.textContent = 'Enter a PAT value first.';
+      return;
+    }
+
+    statusBox.className = 'status show loading';
+    statusBox.innerHTML = '<div class="spinner"></div><span>Updating local PAT configuration…</span>';
+    button.disabled = true;
+
+    try {
+      const resp = await fetch(`${BASE}/admin/pat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pat_type: patType, pat_value: patValue }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+
+      statusBox.className = 'status show success';
+      statusBox.textContent = `${data.detail} Restart ${data.service_name} locally if it is already running. Azure still needs a separate update.`;
+      patValueInput.value = '';
+    } catch (err) {
+      statusBox.className = 'status show error';
+      statusBox.textContent = 'PAT update failed: ' + err.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   // ── Export helpers ───────────────────────────────────────────────────────
   function _stringifyCell(v) {
     if (v === null || v === undefined) return '';
@@ -3319,8 +3447,13 @@
 
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape') {
+      const patOverlay = document.getElementById('patModalOverlay');
       const deleteOverlay = document.getElementById('pageDeleteConfirmOverlay');
       const renameOverlay = document.getElementById('pageRenameModalOverlay');
+      if (patOverlay && !patOverlay.hidden) {
+        closePatModal();
+        return;
+      }
       if (deleteOverlay && !deleteOverlay.hidden) {
         closePageDeleteConfirm();
         return;

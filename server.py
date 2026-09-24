@@ -36,13 +36,17 @@ from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ────────────────────────────────────────────────────────────────────────────
 # File logging: capture everything (info/warnings/errors) that happens while
 # the dashboard is running to a log file next to server.py, so issues can be
 # diagnosed after the fact without needing to keep the console window open.
 # ────────────────────────────────────────────────────────────────────────────
-_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server_log.txt")
-_DASHBOARD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html")
+_LOG_FILE = os.path.join(_BASE_DIR, "server_log.txt")
+_DASHBOARD_FILE = os.path.join(_BASE_DIR, "dashboard.html")
+_JIRA_ENV_FILE = os.path.join(_BASE_DIR, "jira-mcp", ".env")
+_CONFLUENCE_ENV_FILE = os.path.join(_BASE_DIR, "confluence-mcp", ".env")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -570,7 +574,7 @@ def get_local_client(timeout=30):
 #   3. The Electron MCP-Installer app's own jira-mcp/.env (its install
 #      location varies per machine; %LOCALAPPDATA% covers the common case)
 _JIRA_MCP_ENV_CANDIDATES = [
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "jira-mcp", ".env"),
+    _JIRA_ENV_FILE,
     os.path.join(
         os.getenv("LOCALAPPDATA", ""),
         "Programs", "MCP-Installer", "mcp-servers", "jira-mcp", ".env",
@@ -680,6 +684,77 @@ app.add_middleware(
 async def serve_dashboard():
     with open(_DASHBOARD_FILE, "r", encoding="utf-8") as dashboard_file:
         return HTMLResponse(content=dashboard_file.read())
+
+
+def _write_env_value(env_file: str, key: str, value: str) -> None:
+    if not os.path.exists(env_file):
+        raise HTTPException(status_code=404, detail=f"Env file not found: {env_file}")
+
+    with open(env_file, "r", encoding="utf-8") as env_handle:
+        lines = env_handle.readlines()
+
+    pattern = re.compile(rf"^\s*{re.escape(key)}\s*=")
+    replacement = f'{key}="{value}"\n'
+    updated = False
+    new_lines = []
+
+    for line in lines:
+        if pattern.match(line):
+            new_lines.append(replacement)
+            updated = True
+        else:
+            new_lines.append(line)
+
+    if not updated:
+        if new_lines and not new_lines[-1].endswith("\n"):
+            new_lines[-1] = new_lines[-1] + "\n"
+        new_lines.append(replacement)
+
+    with open(env_file, "w", encoding="utf-8") as env_handle:
+        env_handle.writelines(new_lines)
+
+
+@app.post("/admin/pat")
+async def update_pat_value(payload: dict = Body(...)):
+    pat_type = str(payload.get("pat_type", "")).strip().lower()
+    pat_value = str(payload.get("pat_value", "")).strip()
+
+    if pat_type not in {"jira", "confluence"}:
+        raise HTTPException(status_code=400, detail="pat_type must be jira or confluence")
+    if not pat_value:
+        raise HTTPException(status_code=400, detail="pat_value is required")
+
+    target = {
+        "jira": {
+            "env_file": _JIRA_ENV_FILE,
+            "env_key": "JIRA_PAT",
+            "service_name": "jira-mcp",
+        },
+        "confluence": {
+            "env_file": _CONFLUENCE_ENV_FILE,
+            "env_key": "CONFLUENCE_PAT",
+            "service_name": "confluence-mcp",
+        },
+    }[pat_type]
+
+    _write_env_value(target["env_file"], target["env_key"], pat_value)
+    os.environ[target["env_key"]] = pat_value
+
+    global _DIRECT_JIRA_PAT
+    if pat_type == "jira":
+        _jira_mcp_env[target["env_key"]] = pat_value
+        _DIRECT_JIRA_PAT = pat_value
+
+    return {
+        "detail": f"Updated {target['env_key']} in {target['service_name']} local env file.",
+        "service_name": target["service_name"],
+        "env_key": target["env_key"],
+        "restart_required": [target["service_name"]],
+        "azure_note": (
+            "Azure Container Apps do not read this local file. Update the same variable in the "
+            f"{target['service_name']} Azure Container App and deploy a new revision there."
+        ),
+    }
 
 
 @app.exception_handler(Exception)
