@@ -42,6 +42,7 @@ logger = logging.getLogger(__name__)
 # diagnosed after the fact without needing to keep the console window open.
 # ────────────────────────────────────────────────────────────────────────────
 _LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server_log.txt")
+_DASHBOARD_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "dashboard.html")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -672,6 +673,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
+async def serve_dashboard():
+    with open(_DASHBOARD_FILE, "r", encoding="utf-8") as dashboard_file:
+        return HTMLResponse(content=dashboard_file.read())
 
 
 @app.exception_handler(Exception)
