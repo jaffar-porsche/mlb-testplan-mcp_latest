@@ -312,15 +312,47 @@
     }
     .page-picker-wrap {
       display: flex;
-      align-items: end;
+      align-items: stretch;
       gap: 10px;
       flex-wrap: wrap;
       max-width: 520px;
       position: relative;
+      padding: 10px;
+      border: 1px solid rgba(47,102,144,.12);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(255,255,255,.98) 0%, rgba(234,239,243,.92) 100%);
+      box-shadow: 0 10px 30px rgba(29,45,63,.08);
+      overflow: visible;
+    }
+    .page-picker-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(47,102,144,.08), transparent 42%, rgba(29,45,63,.04));
+      pointer-events: none;
     }
     .page-picker-select {
       flex: 0 1 340px;
       min-width: 220px;
+      position: relative;
+      z-index: 1;
+      border-radius: 14px;
+      border-color: rgba(47,102,144,.18);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(242,242,242,.92));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 20px rgba(29,45,63,.08);
+      transition: transform .22s var(--pds-transition), border-color .22s var(--pds-transition), box-shadow .22s var(--pds-transition), background .22s var(--pds-transition);
+    }
+    .page-picker-select:hover {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.34);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 14px 24px rgba(29,45,63,.12);
+    }
+    .page-picker-select:focus {
+      transform: translateY(-1px);
+      border-color: var(--pds-color-brand);
+      box-shadow: 0 0 0 4px rgba(47,102,144,.14), 0 14px 24px rgba(29,45,63,.14);
     }
     .page-picker-delete {
       width: 48px;
@@ -329,68 +361,150 @@
       padding: 0;
       font-size: 1rem;
       letter-spacing: 0;
+      position: relative;
+      z-index: 1;
+      border-radius: 14px;
+      border-color: rgba(29,45,63,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(242,242,242,.92));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 10px 18px rgba(29,45,63,.08);
+      transition: transform .22s var(--pds-transition), box-shadow .22s var(--pds-transition), border-color .22s var(--pds-transition), color .22s var(--pds-transition);
+    }
+    .page-picker-delete:hover,
+    .page-picker-delete:focus {
+      transform: translateY(-1px) rotate(-6deg);
+      border-color: rgba(213,0,28,.24);
+      color: var(--pds-color-error);
+      box-shadow: 0 14px 22px rgba(213,0,28,.16);
     }
     .page-picker-add-row {
       display: flex;
       gap: 10px;
       align-items: center;
       flex-wrap: wrap;
-      margin-top: 10px;
+      margin-top: 12px;
       max-width: 520px;
+      padding: 12px;
+      border: 1px solid rgba(47,102,144,.12);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(242,242,242,.92));
+      box-shadow: 0 12px 28px rgba(29,45,63,.07);
     }
     .page-picker-add-row input {
       flex: 0 1 240px;
       min-width: 180px;
       height: 48px;
-      border: 1px solid var(--pds-color-neutral-2);
-      border-radius: var(--pds-border-radius-sm);
-      padding: 0 14px;
+      border: 1px solid rgba(47,102,144,.16);
+      border-radius: 14px;
+      padding: 0 16px;
       font-family: var(--pds-font);
       font-size: 0.95rem;
       color: var(--pds-color-primary);
-      background: var(--pds-color-surface);
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,249,250,.94));
       outline: none;
-      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 8px 18px rgba(29,45,63,.05);
+      transition: transform .22s var(--pds-transition), border-color .22s var(--pds-transition), box-shadow .22s var(--pds-transition), background .22s var(--pds-transition);
+    }
+    .page-picker-add-row input:hover {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.28);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 12px 22px rgba(29,45,63,.08);
     }
     .page-picker-add-row input:focus {
-      border-color: var(--pds-color-primary);
-      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+      transform: translateY(-1px);
+      border-color: var(--pds-color-brand);
+      background: linear-gradient(180deg, rgba(255,255,255,1), rgba(244,248,251,.98));
+      box-shadow: 0 0 0 4px rgba(47,102,144,.12), 0 14px 24px rgba(29,45,63,.10);
+    }
+    .page-picker-add-row input::placeholder {
+      color: #8a939d;
+      transition: color .22s var(--pds-transition), transform .22s var(--pds-transition);
+    }
+    .page-picker-add-row input:focus::placeholder {
+      color: #a8afb7;
+      transform: translateX(2px);
+    }
+    .page-picker-add-btn {
+      min-width: 126px;
+      height: 48px;
+      border-radius: 14px;
+      border-color: rgba(47,102,144,.18);
+      background: linear-gradient(135deg, rgba(47,102,144,.10), rgba(255,255,255,.96));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 10px 20px rgba(29,45,63,.08);
+      transition: transform .22s var(--pds-transition), box-shadow .22s var(--pds-transition), border-color .22s var(--pds-transition), color .22s var(--pds-transition);
+    }
+    .page-picker-add-btn:hover,
+    .page-picker-add-btn:focus {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.34);
+      color: var(--pds-color-brand);
+      box-shadow: 0 16px 24px rgba(47,102,144,.16);
     }
     .page-delete-list {
       position: absolute;
-      top: calc(100% + 8px);
+      top: calc(100% + 10px);
       right: 0;
-      width: min(320px, 92vw);
-      background: var(--pds-color-surface);
-      border: 1px solid var(--pds-color-neutral-3);
-      box-shadow: var(--pds-shadow-medium);
-      padding: 12px;
+      width: min(360px, 92vw);
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(242,245,247,.97));
+      border: 1px solid rgba(47,102,144,.14);
+      border-radius: 20px;
+      box-shadow: 0 24px 50px rgba(29,45,63,.18), 0 0 0 1px rgba(255,255,255,.55) inset;
+      padding: 16px;
       z-index: 40;
+      backdrop-filter: blur(14px);
+      transform-origin: top right;
+      animation: pagePanelIn .22s var(--pds-transition);
     }
     .page-delete-list[hidden] {
       display: none;
+    }
+    @keyframes pagePanelIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px) scale(.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
     }
     .page-delete-list-title {
       font-size: 0.72rem;
       font-weight: 700;
       letter-spacing: 1px;
       text-transform: uppercase;
+      color: var(--pds-color-brand);
+      margin-bottom: 4px;
+    }
+    .page-delete-list-subtitle {
+      margin-bottom: 12px;
+      font-size: 0.82rem;
       color: var(--pds-color-neutral-1);
-      margin-bottom: 10px;
+      line-height: 1.45;
     }
     .page-delete-list-items {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 10px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 2px;
     }
     .page-delete-item {
       display: flex;
       align-items: flex-start;
       justify-content: space-between;
       gap: 10px;
-      border: 1px solid var(--pds-color-neutral-3);
-      padding: 10px 12px;
-      background: #fafafa;
+      border: 1px solid rgba(47,102,144,.10);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,247,248,.96));
+      box-shadow: 0 10px 20px rgba(29,45,63,.05);
+      transition: transform .2s var(--pds-transition), border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+    }
+    .page-delete-item:hover {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.22);
+      box-shadow: 0 14px 24px rgba(29,45,63,.08);
     }
     .page-delete-item-text {
       min-width: 0;
@@ -400,7 +514,8 @@
     }
     .page-delete-item-text strong {
       display: block;
-      font-size: 0.9rem;
+      font-size: 0.92rem;
+      letter-spacing: .01em;
     }
     .page-delete-item-text span {
       display: block;
@@ -424,35 +539,21 @@
       gap: 8px;
       flex-shrink: 0;
     }
-    .page-delete-rename-row {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-      align-items: center;
-    }
-    .page-delete-rename-row input {
-      flex: 1 1 auto;
-      min-width: 0;
-      height: 36px;
-      border: 1px solid var(--pds-color-neutral-2);
-      border-radius: var(--pds-border-radius-sm);
-      padding: 0 10px;
-      font-family: var(--pds-font);
-      font-size: 0.85rem;
-      color: var(--pds-color-primary);
-      background: var(--pds-color-surface);
-      outline: none;
-    }
-    .page-delete-rename-row input:focus {
-      border-color: var(--pds-color-primary);
-      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
-    }
     .page-delete-rename-btn {
       height: 36px;
       min-width: 74px;
       padding: 0 12px;
       letter-spacing: 0.04em;
       font-size: 0.72rem;
+      border-radius: 12px;
+    }
+    .page-delete-secondary-btn {
+      min-width: 72px;
+      height: 36px;
+      padding: 0 12px;
+      letter-spacing: 0.04em;
+      font-size: 0.72rem;
+      border-radius: 12px;
     }
     .page-delete-item-btn {
       min-width: 36px;
@@ -460,6 +561,99 @@
       padding: 0;
       letter-spacing: 0;
       flex-shrink: 0;
+      border-radius: 12px;
+    }
+    .page-rename-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(1,2,5,.48);
+      backdrop-filter: blur(6px);
+      z-index: 1200;
+    }
+    .page-rename-overlay[hidden] {
+      display: none;
+    }
+    .page-rename-dialog {
+      width: min(460px, calc(100vw - 32px));
+      padding: 22px 22px 18px;
+      border: 1px solid rgba(47,102,144,.14);
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,249,252,.98));
+      box-shadow: 0 32px 72px rgba(16,24,40,.24), 0 12px 28px rgba(29,45,63,.12);
+      animation: pagePanelIn .2s var(--pds-transition);
+    }
+    .page-rename-dialog-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .page-rename-dialog-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--pds-color-primary);
+      letter-spacing: 0.01em;
+    }
+    .page-rename-dialog-subtitle {
+      margin: 6px 0 0;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: var(--pds-color-neutral-1);
+    }
+    .page-rename-dialog-close {
+      border: none;
+      background: transparent;
+      color: var(--pds-color-neutral-1);
+      font-size: 1.45rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .page-rename-dialog-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(47,102,144,.08);
+      color: var(--pds-color-primary);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .page-rename-dialog input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid rgba(47,102,144,.16);
+      border-radius: 14px;
+      padding: 0 14px;
+      font-family: var(--pds-font);
+      font-size: 0.9rem;
+      color: var(--pds-color-primary);
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(248,249,250,.96));
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.92);
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition), transform .2s var(--pds-transition);
+    }
+    .page-rename-dialog input:focus {
+      transform: translateY(-1px);
+      border-color: var(--pds-color-brand);
+      box-shadow: 0 0 0 3px rgba(47,102,144,.12), 0 10px 18px rgba(29,45,63,.08);
+    }
+    .page-rename-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
     }
     select {
       width: 100%;
@@ -683,13 +877,48 @@
         <button class="btn btn-secondary page-picker-delete" type="button" id="deletePageIdBtn" onclick="toggleDeletePageList()" title="Manage custom page IDs" aria-label="Manage custom page IDs">&#128465;</button>
         <div id="pageDeleteList" class="page-delete-list" hidden>
           <div class="page-delete-list-title">Manage Page IDs</div>
+          <div class="page-delete-list-subtitle">Rename labels, review defaults, and remove only the custom entries you no longer need.</div>
           <div id="pageDeleteListItems" class="page-delete-list-items"></div>
+        </div>
+      </div>
+      <div id="pageRenameModalOverlay" class="page-rename-overlay" onclick="closePageRenameModal(event)" hidden>
+        <div class="page-rename-dialog" onclick="event.stopPropagation()">
+          <div class="page-rename-dialog-header">
+            <div>
+              <h3 class="page-rename-dialog-title">Rename Page Label</h3>
+              <p class="page-rename-dialog-subtitle">Update the display name used in the page selector while keeping the original page ID unchanged.</p>
+            </div>
+            <button class="page-rename-dialog-close" type="button" onclick="closePageRenameModal()" aria-label="Close rename dialog">&times;</button>
+          </div>
+          <div id="pageRenameModalPageId" class="page-rename-dialog-meta"></div>
+          <input id="pageRenameModalInput" type="text" aria-label="Rename selected page" />
+          <div class="page-rename-dialog-actions">
+            <button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick="closePageRenameModal()">Cancel</button>
+            <button class="btn btn-secondary page-delete-rename-btn" type="button" onclick="savePageRenameModal()">Save</button>
+          </div>
+        </div>
+      </div>
+      <div id="pageDeleteConfirmOverlay" class="page-rename-overlay" onclick="closePageDeleteConfirm(event)" hidden>
+        <div class="page-rename-dialog" onclick="event.stopPropagation()">
+          <div class="page-rename-dialog-header">
+            <div>
+              <h3 class="page-rename-dialog-title">Delete Page ID</h3>
+              <p class="page-rename-dialog-subtitle">Confirm before removing this custom page ID from your saved list.</p>
+            </div>
+            <button class="page-rename-dialog-close" type="button" onclick="closePageDeleteConfirm()" aria-label="Close delete dialog">&times;</button>
+          </div>
+          <div id="pageDeleteConfirmPageId" class="page-rename-dialog-meta"></div>
+          <p id="pageDeleteConfirmLabel" class="page-rename-dialog-subtitle" style="margin:0 0 16px;color:var(--pds-color-primary);"></p>
+          <div class="page-rename-dialog-actions">
+            <button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick="closePageDeleteConfirm()">Cancel</button>
+            <button class="btn btn-secondary page-delete-rename-btn" type="button" onclick="confirmDeletePageModal()">Delete</button>
+          </div>
         </div>
       </div>
       <div class="page-picker-add-row">
         <input id="newPageIdInput" type="text" inputmode="text" placeholder="Add new page ID" aria-label="Add new page ID" />
         <input id="newPageNameInput" type="text" inputmode="text" placeholder="Add page name" aria-label="Add page name" />
-        <button class="btn btn-secondary" type="button" onclick="addPageIdOption()">Add Page ID</button>
+        <button class="btn btn-secondary page-picker-add-btn" type="button" onclick="addPageIdOption()">Add Page ID</button>
       </div>
       <div class="field-help" id="pageIdHelp">Using Workstream Applications (2378907792).</div>
     </div>
@@ -701,7 +930,7 @@
       Analyze
     </button>
     <button class="btn btn-secondary" id="btnAiPrompt" onclick="runAiPrompt()" style="border-color:#8b5cf6;color:#8b5cf6;">Ask AI</button>
-    <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="display:none;border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
     <button class="btn btn-secondary" id="btnPriority" onclick="openPriorityModal()">Priority</button>
     <button class="btn btn-secondary" id="btnFailAll" onclick="openFailAllModal()">FAIL All</button>
     <button class="btn btn-secondary" id="btnBlockedAll" onclick="openBlockedAllModal()">BLOCKED All</button>
@@ -1258,9 +1487,10 @@
     }
     container.innerHTML = entries.map(([pageId, label]) => {
       const isDefault = !!DEFAULT_PAGE_OPTIONS[pageId];
-      const actionMarkup = isDefault
+      const renameActionMarkup = `<button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick='beginManagedPageRename(${JSON.stringify(pageId)})'>Rename</button>`;
+      const defaultActionMarkup = isDefault
         ? '<span class="page-delete-item-fixed">Default</span>'
-        : `<button class="btn btn-secondary page-delete-item-btn" type="button" onclick='removeCustomPageId(${JSON.stringify(pageId)})' title="Delete ${escapeHtml(pageId)}" aria-label="Delete ${escapeHtml(pageId)}">&times;</button>`;
+        : `<button class="btn btn-secondary page-delete-item-btn" type="button" onclick='beginManagedPageDelete(${JSON.stringify(pageId)})' title="Delete ${escapeHtml(pageId)}" aria-label="Delete ${escapeHtml(pageId)}">&times;</button>`;
       const badgeText = isDefault ? 'Built-in page ID' : (customOptions[pageId] || 'Custom Page');
       return `
       <div class="page-delete-item">
@@ -1269,26 +1499,80 @@
             <strong>${escapeHtml(pageId)}</strong>
             <span>${escapeHtml(label)} · ${escapeHtml(badgeText)}</span>
           </div>
-          <div class="page-delete-rename-row">
-            <input id="pageRenameInput_${escapeHtml(pageId)}" type="text" value="${escapeHtml(label)}" aria-label="Rename page ${escapeHtml(pageId)}" />
-            <button class="btn btn-secondary page-delete-rename-btn" type="button" onclick='renameManagedPageId(${JSON.stringify(pageId)})'>Rename</button>
-          </div>
         </div>
-        <div class="page-delete-item-actions">${actionMarkup}</div>
+        <div class="page-delete-item-actions">${renameActionMarkup}${defaultActionMarkup}</div>
       </div>
     `;
     }).join('');
+  }
+
+  let activeRenamePageId = null;
+  let activeDeletePageId = null;
+
+  function beginManagedPageRename(pageId) {
+    activeRenamePageId = pageId;
+    const overlay = document.getElementById('pageRenameModalOverlay');
+    const pageIdLabel = document.getElementById('pageRenameModalPageId');
+    const input = document.getElementById('pageRenameModalInput');
+    if (pageIdLabel) pageIdLabel.textContent = pageId;
+    if (input) input.value = PAGE_OPTIONS[pageId] || '';
+    if (overlay) overlay.hidden = false;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  function closePageRenameModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'pageRenameModalOverlay') return;
+    activeRenamePageId = null;
+    const overlay = document.getElementById('pageRenameModalOverlay');
+    const input = document.getElementById('pageRenameModalInput');
+    const pageIdLabel = document.getElementById('pageRenameModalPageId');
+    if (overlay) overlay.hidden = true;
+    if (input) input.value = '';
+    if (pageIdLabel) pageIdLabel.textContent = '';
+  }
+
+  function beginManagedPageDelete(pageId) {
+    activeDeletePageId = pageId;
+    const overlay = document.getElementById('pageDeleteConfirmOverlay');
+    const pageIdLabel = document.getElementById('pageDeleteConfirmPageId');
+    const label = document.getElementById('pageDeleteConfirmLabel');
+    if (pageIdLabel) pageIdLabel.textContent = pageId;
+    if (label) label.textContent = PAGE_OPTIONS[pageId] || '';
+    if (overlay) overlay.hidden = false;
+  }
+
+  function closePageDeleteConfirm(evt) {
+    if (evt && evt.target && evt.target.id !== 'pageDeleteConfirmOverlay') return;
+    activeDeletePageId = null;
+    const overlay = document.getElementById('pageDeleteConfirmOverlay');
+    const pageIdLabel = document.getElementById('pageDeleteConfirmPageId');
+    const label = document.getElementById('pageDeleteConfirmLabel');
+    if (overlay) overlay.hidden = true;
+    if (pageIdLabel) pageIdLabel.textContent = '';
+    if (label) label.textContent = '';
   }
 
   function toggleDeletePageList() {
     const panel = document.getElementById('pageDeleteList');
     if (!panel) return;
     if (!panel.hidden) {
-      panel.hidden = true;
+      closeDeletePageList();
       return;
     }
     renderDeletePageList();
     panel.hidden = false;
+  }
+
+  function closeDeletePageList() {
+    const panel = document.getElementById('pageDeleteList');
+    closePageRenameModal();
+    closePageDeleteConfirm();
+    if (panel) {
+      panel.hidden = true;
+    }
   }
 
   function removeCustomPageId(pageId) {
@@ -1307,8 +1591,15 @@
     document.getElementById('pageIdHelp').textContent = `Removed page ID ${pageId}. Using ${getSelectedPageLabel()} (${getSelectedPageId()}).`;
   }
 
+  function confirmDeletePageModal() {
+    if (!activeDeletePageId) return;
+    const pageId = activeDeletePageId;
+    closePageDeleteConfirm();
+    removeCustomPageId(pageId);
+  }
+
   function renameManagedPageId(pageId) {
-    const input = document.getElementById(`pageRenameInput_${pageId}`);
+    const input = document.getElementById('pageRenameModalInput');
     const nextLabel = (input?.value || '').trim();
     if (!nextLabel) {
       document.getElementById('pageIdHelp').textContent = `Enter a page name for ${pageId}.`;
@@ -1325,12 +1616,18 @@
       saveCustomPageOptions(customOptions);
     }
 
+    closePageRenameModal();
     renderPageOptions(getSelectedPageId() === pageId ? pageId : getSelectedPageId());
     const panel = document.getElementById('pageDeleteList');
     if (panel) {
       panel.hidden = false;
     }
     document.getElementById('pageIdHelp').textContent = `Updated page name for ${pageId} to ${nextLabel}.`;
+  }
+
+  function savePageRenameModal() {
+    if (!activeRenamePageId) return;
+    renameManagedPageId(activeRenamePageId);
   }
 
   async function fetchConfluenceTestPlans(filters = {}) {
@@ -3002,6 +3299,39 @@
   }
 
   renderPageOptions(getSelectedPageId());
+
+  const pagePickerWrap = document.querySelector('.page-picker-wrap');
+  if (pagePickerWrap) {
+    pagePickerWrap.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    const panel = document.getElementById('pageDeleteList');
+    if (!panel || panel.hidden) return;
+    const target = event.target;
+    if (target instanceof Element && (target.closest('#pageRenameModalOverlay') || target.closest('#pageDeleteConfirmOverlay'))) {
+      return;
+    }
+    closeDeletePageList();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      const deleteOverlay = document.getElementById('pageDeleteConfirmOverlay');
+      const renameOverlay = document.getElementById('pageRenameModalOverlay');
+      if (deleteOverlay && !deleteOverlay.hidden) {
+        closePageDeleteConfirm();
+        return;
+      }
+      if (renameOverlay && !renameOverlay.hidden) {
+        closePageRenameModal();
+        return;
+      }
+      closeDeletePageList();
+    }
+  });
 
 </script>
 </div><!-- /.pds-page -->
