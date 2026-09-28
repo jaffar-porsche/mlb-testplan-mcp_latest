@@ -25,8 +25,10 @@ Handles both issue types automatically:
 """
 import re
 import logging
+from collections import Counter
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
+from urllib.parse import parse_qs
 
 from fastapi import HTTPException
 
@@ -34,12 +36,17 @@ from fastapi import HTTPException
 
 logger = logging.getLogger(__name__)
 
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 # ────────────────────────────────────────────────────────────────────────────
 # File logging: capture everything (info/warnings/errors) that happens while
 # the dashboard is running to a log file next to server.py, so issues can be
 # diagnosed after the fact without needing to keep the console window open.
 # ────────────────────────────────────────────────────────────────────────────
-_LOG_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "server_log.txt")
+_LOG_FILE = os.path.join(_BASE_DIR, "server_log.txt")
+_DASHBOARD_FILE = os.path.join(_BASE_DIR, "dashboard.html")
+_JIRA_ENV_FILE = os.path.join(_BASE_DIR, "jira-mcp", ".env")
+_CONFLUENCE_ENV_FILE = os.path.join(_BASE_DIR, "confluence-mcp", ".env")
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s: %(message)s",
@@ -567,7 +574,7 @@ def get_local_client(timeout=30):
 #   3. The Electron MCP-Installer app's own jira-mcp/.env (its install
 #      location varies per machine; %LOCALAPPDATA% covers the common case)
 _JIRA_MCP_ENV_CANDIDATES = [
-    os.path.join(os.path.dirname(os.path.abspath(__file__)), "jira-mcp", ".env"),
+    _JIRA_ENV_FILE,
     os.path.join(
         os.getenv("LOCALAPPDATA", ""),
         "Programs", "MCP-Installer", "mcp-servers", "jira-mcp", ".env",
@@ -672,6 +679,84 @@ app.add_middleware(
 )
 
 
+@app.get("/", response_class=HTMLResponse, include_in_schema=False)
+@app.get("/dashboard", response_class=HTMLResponse, include_in_schema=False)
+async def serve_dashboard():
+    with open(_DASHBOARD_FILE, "r", encoding="utf-8") as dashboard_file:
+        return HTMLResponse(content=dashboard_file.read())
+
+
+def _write_env_value(env_file: str, key: str, value: str) -> None:
+    if not os.path.exists(env_file):
+        raise HTTPException(status_code=404, detail=f"Env file not found: {env_file}")
+
+    with open(env_file, "r", encoding="utf-8") as env_handle:
+        lines = env_handle.readlines()
+
+    pattern = re.compile(rf"^\s*{re.escape(key)}\s*=")
+    replacement = f'{key}="{value}"\n'
+    updated = False
+    new_lines = []
+
+    for line in lines:
+        if pattern.match(line):
+            new_lines.append(replacement)
+            updated = True
+        else:
+            new_lines.append(line)
+
+    if not updated:
+        if new_lines and not new_lines[-1].endswith("\n"):
+            new_lines[-1] = new_lines[-1] + "\n"
+        new_lines.append(replacement)
+
+    with open(env_file, "w", encoding="utf-8") as env_handle:
+        env_handle.writelines(new_lines)
+
+
+@app.post("/admin/pat")
+async def update_pat_value(payload: dict = Body(...)):
+    pat_type = str(payload.get("pat_type", "")).strip().lower()
+    pat_value = str(payload.get("pat_value", "")).strip()
+
+    if pat_type not in {"jira", "confluence"}:
+        raise HTTPException(status_code=400, detail="pat_type must be jira or confluence")
+    if not pat_value:
+        raise HTTPException(status_code=400, detail="pat_value is required")
+
+    target = {
+        "jira": {
+            "env_file": _JIRA_ENV_FILE,
+            "env_key": "JIRA_PAT",
+            "service_name": "jira-mcp",
+        },
+        "confluence": {
+            "env_file": _CONFLUENCE_ENV_FILE,
+            "env_key": "CONFLUENCE_PAT",
+            "service_name": "confluence-mcp",
+        },
+    }[pat_type]
+
+    _write_env_value(target["env_file"], target["env_key"], pat_value)
+    os.environ[target["env_key"]] = pat_value
+
+    global _DIRECT_JIRA_PAT
+    if pat_type == "jira":
+        _jira_mcp_env[target["env_key"]] = pat_value
+        _DIRECT_JIRA_PAT = pat_value
+
+    return {
+        "detail": f"Updated {target['env_key']} in {target['service_name']} local env file.",
+        "service_name": target["service_name"],
+        "env_key": target["env_key"],
+        "restart_required": [target["service_name"]],
+        "azure_note": (
+            "Azure Container Apps do not read this local file. Update the same variable in the "
+            f"{target['service_name']} Azure Container App and deploy a new revision there."
+        ),
+    }
+
+
 @app.exception_handler(Exception)
 async def _unhandled_exception_handler(request: Request, exc: Exception):
     """
@@ -733,6 +818,95 @@ def normalize_text(text: str) -> str:
     text = re.sub(r"[-/()\[\]]", " ", text)
     text = re.sub(r"\s+", " ", text)
     return text.strip()
+
+
+def _extract_region_token_from_text(text: str) -> str:
+    """Infer a canonical region token from free-form text such as a Jira summary."""
+    if not text:
+        return ""
+    region_patterns = [
+        ("ECE", re.compile(r"\bECE\b|Testing\s+ECE", re.I)),
+        ("NAR", re.compile(r"\bNAR\b|North\s+America|Testing\s+NAR", re.I)),
+        ("JPN", re.compile(r"\bJPN\b|Japan|Testing\s+JPN", re.I)),
+        ("KOR", re.compile(r"\bKOR\b|Korea|Testing\s+KOR", re.I)),
+        ("TWN", re.compile(r"\bTWN\b|Taiwan|Testing\s+TWN", re.I)),
+        ("HKG", re.compile(r"\bHKG\b|Hong\s*-?\s*Kong|Testing\s+Hong\s*-?\s*Kong", re.I)),
+        ("MAC", re.compile(r"\bMAC\b|Macau|Testing\s+Macau", re.I)),
+    ]
+    for token, pattern in region_patterns:
+        if pattern.search(text):
+            return token
+    return ""
+
+
+def _build_market_context(page_title: str, body: str, has_explicit_regions: bool) -> dict | None:
+    """Describe pages that are working-group scoped rather than market/region scoped."""
+    if has_explicit_regions:
+        return None
+    haystack = f"{page_title or ''}\n{body or ''}"
+    if re.search(r"\bRDW\b", haystack, re.I):
+        return {
+            "mode": "RDW",
+            "message": "RDW market found on this page. Region filters are ignored; showing working-group test plans.",
+        }
+    return {
+        "mode": "NO_MARKET",
+        "message": "No Market is found on this page. Region filters are ignored; showing working-group test plans.",
+    }
+
+
+def _extract_page_jql_labels(body: str) -> dict[str, set[str]]:
+    jira_pattern = re.compile(r"\b([A-Z][A-Z0-9]+-\d+)\b")
+    jql_pattern = re.compile(r'ac:name="jqlQuery">(.*?)</ac:parameter>', re.DOTALL)
+
+    key_labels: dict[str, set[str]] = {}
+    for raw_query in jql_pattern.findall(body or ""):
+        query = _html.unescape(raw_query).strip()
+        keys_in_query = jira_pattern.findall(query)
+        if not keys_in_query:
+            continue
+        owner_key = keys_in_query[0]
+        key_labels.setdefault(owner_key, set()).add(_classify_jql_label(query))
+    return key_labels
+
+
+def _prune_total_scope_only_keys(
+    key_region: dict[str, str],
+    key_wg: dict[str, str],
+    key_jql_labels: dict[str, set[str]],
+) -> tuple[dict[str, str], dict[str, str]]:
+    grouped_keys: dict[tuple[str, str], list[str]] = {}
+    all_keys = set(key_region.keys()) | set(key_wg.keys()) | set(key_jql_labels.keys())
+
+    for key in all_keys:
+        region = key_region.get(key, "")
+        working_group = key_wg.get(key, "")
+        if not region or not working_group:
+            continue
+        grouped_keys.setdefault((region, working_group), []).append(key)
+
+    stale_keys: set[str] = set()
+    for keys in grouped_keys.values():
+        if len(keys) < 2:
+            continue
+        has_rich_key = any(
+            any(label != "Total Scope" for label in key_jql_labels.get(key, set()))
+            for key in keys
+        )
+        if not has_rich_key:
+            continue
+        for key in keys:
+            labels = key_jql_labels.get(key, set())
+            if labels and labels <= {"Total Scope"}:
+                stale_keys.add(key)
+
+    if not stale_keys:
+        return key_region, key_wg
+
+    return (
+        {key: value for key, value in key_region.items() if key not in stale_keys},
+        {key: value for key, value in key_wg.items() if key not in stale_keys},
+    )
 
 
 def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, page_id: str = None):
@@ -912,6 +1086,108 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                     if key not in key_wg:
                         key_wg[key] = current_wg
 
+        explicit_region_found = bool(key_region)
+
+        # F4 board pages often omit the older testExecutionTests(...) markers
+        # and instead carry the region next to testPlanKey in gadget metadata
+        # such as customTitle / preferences. Limit this fallback to F4 pages so
+        # existing SOP parsing stays unchanged.
+        page_title = (data.get("title") or "").strip()
+        if page_title.lower().startswith("test plan f4"):
+            region_token_patterns = [
+                ("ECE", re.compile(r"\bECE\b", re.I)),
+                ("NAR", re.compile(r"\bNAR\b|North\s+America", re.I)),
+                ("JPN", re.compile(r"\bJPN\b|Japan", re.I)),
+                ("KOR", re.compile(r"\bKOR\b|Korea", re.I)),
+                ("TWN", re.compile(r"\bTWN\b|Taiwan", re.I)),
+                ("HKG", re.compile(r"\bHKG\b|Hong\s*-?\s*Kong", re.I)),
+                ("MAC", re.compile(r"\bMAC\b|Macau", re.I)),
+            ]
+            fallback_region_votes: dict[str, list[str]] = {}
+            for macro in soup.find_all(lambda t: t.name and "structured-macro" in t.name.lower()):
+                params = {
+                    p.get("ac:name", ""): p.get_text(" ", strip=True)
+                    for p in macro.find_all(lambda t: t.name and "parameter" in t.name.lower())
+                }
+                pref_values = parse_qs(params.get("preferences", "")) if params.get("preferences") else {}
+                pref_key = (pref_values.get("testPlanKey") or [""])[0].strip()
+                macro_keys = [k for k in [params.get("testPlanKey", "").strip(), params.get("key", "").strip(), pref_key] if k]
+                if not macro_keys:
+                    continue
+                text = " ".join(v for v in params.values() if v)
+                if not text:
+                    continue
+                for token, pattern in region_token_patterns:
+                    if pattern.search(text):
+                        for key in macro_keys:
+                            fallback_region_votes.setdefault(key, []).append(token)
+                        break
+
+            for key, votes in fallback_region_votes.items():
+                if not votes:
+                    continue
+                token = Counter(votes).most_common(1)[0][0]
+                key_region[key] = token
+
+            # The F4 Applications page can carry stale row/header associations,
+            # but its gadget custom titles still encode the intended WG per
+            # testPlanKey. Limit this override to that page family so the older
+            # SOP parsing and F4 Platform behavior remain unchanged.
+            if "workstream applications" in page_title.lower():
+                f4_app_wg_patterns = [
+                    ("Navigation", re.compile(r"\bNavigation\b", re.I)),
+                    ("Digital assistant", re.compile(r"Digital\s+Assistent|Digital\s+Assistant", re.I)),
+                    ("Core HMI / GBK", re.compile(r"Core\s*HMI|CoreHMI|\bGBK\b", re.I)),
+                    ("Media / Tuner (Entertainment)", re.compile(r"Entertainment|Media\s*/?\s*Tuner", re.I)),
+                    ("App Store / 3rd Party", re.compile(r"App\s*Store|AppStore|3rd\s*Party", re.I)),
+                ]
+                fallback_wg_by_key: dict[str, str] = {}
+                for macro in soup.find_all(lambda t: t.name and "structured-macro" in t.name.lower()):
+                    params = {
+                        p.get("ac:name", ""): p.get_text(" ", strip=True)
+                        for p in macro.find_all(lambda t: t.name and "parameter" in t.name.lower())
+                    }
+                    pref_values = parse_qs(params.get("preferences", "")) if params.get("preferences") else {}
+                    pref_key = (pref_values.get("testPlanKey") or [""])[0].strip()
+                    direct_key = params.get("testPlanKey", "").strip()
+                    key_title_pairs = []
+                    pref_custom_title = (pref_values.get("customTitle") or [""])[0].strip()
+                    if pref_key:
+                        key_title_pairs.append((pref_key, pref_custom_title or params.get("title", "").strip()))
+                    if direct_key:
+                        key_title_pairs.append((direct_key, " ".join(v for v in [params.get("customTitle", ""), params.get("title", "")] if v).strip()))
+                    if not key_title_pairs:
+                        continue
+                    for key, title_text in key_title_pairs:
+                        if not title_text:
+                            continue
+                        for wg_name, wg_pattern in f4_app_wg_patterns:
+                            if wg_pattern.search(title_text):
+                                fallback_wg_by_key[key] = wg_name
+                                break
+
+                for key, wg_name in fallback_wg_by_key.items():
+                    key_wg[key] = wg_name
+
+        market_context = _build_market_context(page_title, body, explicit_region_found)
+
+        # Golden Sample pages can expose valid test plan keys and working
+        # groups while omitting a machine-readable region marker in the page
+        # storage. Recover those blanks from the Jira issue summary only when
+        # the page already exposes at least one explicit region marker.
+        missing_region_keys = [
+            key for key in set(list(key_region.keys()) + list(key_wg.keys()))
+            if key not in key_region and key_wg.get(key)
+        ]
+        if missing_region_keys and explicit_region_found:
+            for key, summary in _fetch_issue_summaries(missing_region_keys).items():
+                region_token = _extract_region_token_from_text(summary)
+                if region_token:
+                    key_region[key] = region_token
+
+        key_jql_labels = _extract_page_jql_labels(body)
+        key_region, key_wg = _prune_total_scope_only_keys(key_region, key_wg, key_jql_labels)
+
         if debug:
             combined = []
             for key in set(list(key_region.keys()) + list(key_wg.keys())):
@@ -919,6 +1195,7 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                     "key": key,
                     "region": key_region.get(key, "?"),
                     "working_group": key_wg.get(key, "?"),
+                    "market_mode": market_context["mode"] if market_context else None,
                 })
             return sorted(combined, key=lambda x: (x["region"], x["key"]))
 
@@ -942,6 +1219,8 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 region_token = key_region.get(key, "")
                 wg = key_wg.get(key, "")
                 region_match = (not location_token) or (region_token == location_token)
+                if market_context and location_token:
+                    region_match = True
                 wg_match = (not working_group) or (
                     working_group.lower() in wg.lower()
                     or wg.lower() in working_group.lower()
@@ -949,8 +1228,10 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 if region_match and wg_match:
                     matches.append({
                         "test_plan_key": key,
-                        "region": _TOKEN_TO_LOCATION.get(region_token, region_token),
+                        "region": "" if market_context else _TOKEN_TO_LOCATION.get(region_token, region_token),
                         "working_group": wg,
+                        "market_mode": market_context["mode"] if market_context else None,
+                        "market_message": market_context["message"] if market_context else None,
                     })
             matches.sort(key=lambda x: (x["region"], x["working_group"], x["test_plan_key"]))
             return matches
@@ -1357,9 +1638,15 @@ def get_confluence_testplans(
 
     seen_keys: set = set()
     matches: list = []
+    page_context = None
     for _pid in _CONFLUENCE_PAGE_IDS:   
         _results = _extract_test_plan_key_from_confluence(filters, page_id=_pid) or []
         for item in _results:
+            if not page_context and item.get("market_mode"):
+                page_context = {
+                    "mode": item.get("market_mode"),
+                    "message": item.get("market_message"),
+                }
             key = item.get("test_plan_key")
             if key and key not in seen_keys:
                 seen_keys.add(key)
@@ -1372,9 +1659,10 @@ def get_confluence_testplans(
             "region_raw": region or None,
             "region_canonical": canonical_region or None,
         },
+        "page_context": page_context,
         "total": len(matches),
         "test_plans": matches,
-        "message": None if matches else "No test plans found for the given filters.",
+        "message": page_context.get("message") if page_context else (None if matches else "No test plans found for the given filters."),
     }
 
 
@@ -1473,6 +1761,13 @@ def _build_confluence_testplan_entries(page_id: str) -> list[dict]:
         key_jqls.setdefault(owner_key, {})
         # Keep first occurrence per label (avoids overwriting with duplicate rows)
         key_jqls[owner_key].setdefault(label, query)
+
+    label_sets = {key: set(labels.keys()) for key, labels in key_jqls.items()}
+    key_region, key_wg = _prune_total_scope_only_keys(key_region, key_wg, label_sets)
+    key_jqls = {
+        key: value for key, value in key_jqls.items()
+        if key in key_region or key in key_wg
+    }
 
     all_keys = set(key_jqls.keys()) | set(key_region.keys()) | set(key_wg.keys())
 
@@ -3221,15 +3516,21 @@ def get_fail_all(
     seen_keys: set = set()
     test_plans: list = []
     key_working_group: dict[str, str] = {}
+    page_context = None
     page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
     for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            if not page_context and item.get("market_mode"):
+                page_context = {
+                    "mode": item.get("market_mode"),
+                    "message": item.get("market_message"),
+                }
             key = item.get("test_plan_key")
             wg = item.get("working_group", "") or ""
             reg = item.get("region", "") or ""
             if mode == "region" and not wg:
                 continue
-            if mode == "working_group" and not reg:
+            if mode == "working_group" and not reg and not page_context:
                 continue
             if key and key not in seen_keys:
                 seen_keys.add(key)
@@ -3243,11 +3544,12 @@ def get_fail_all(
             "mode": mode,
             "region": canonical if mode == "region" else None,
             "working_group": canonical if mode == "working_group" else None,
+            "page_context": page_context,
             "test_plans_checked": [],
             "combined_jql": combined_jql,
             "total_fail": 0,
             "results": [],
-            "message": "No test plans found for the given region/working group.",
+            "message": page_context.get("message") if page_context else "No test plans found for the given region/working group.",
             "elapsed_seconds": round(time.time() - _start_time, 2),
         }
 
@@ -3297,10 +3599,12 @@ def get_fail_all(
         "mode": mode,
         "region": canonical if mode == "region" else None,
         "working_group": canonical if mode == "working_group" else None,
+        "page_context": page_context,
         "test_plans_checked": test_plans,
         "combined_jql": combined_jql,
         "total_fail": len(results),
         "results": results,
+        "message": page_context.get("message") if page_context else None,
         "elapsed_seconds": round(time.time() - _start_time, 2),
     }
 
@@ -3362,15 +3666,21 @@ def get_blocked_all(
     seen_keys: set = set()
     test_plans: list = []
     key_working_group: dict[str, str] = {}
+    page_context = None
     page_ids = [page_id] if page_id else [CONFLUENCE_PAGE_ID, "2381910576"]
     for _pid in page_ids:
         for item in (_extract_test_plan_key_from_confluence(filters, page_id=_pid) or []):
+            if not page_context and item.get("market_mode"):
+                page_context = {
+                    "mode": item.get("market_mode"),
+                    "message": item.get("market_message"),
+                }
             key = item.get("test_plan_key")
             wg = item.get("working_group", "") or ""
             reg = item.get("region", "") or ""
             if mode == "region" and not wg:
                 continue
-            if mode == "working_group" and not reg:
+            if mode == "working_group" and not reg and not page_context:
                 continue
             if key and key not in seen_keys:
                 seen_keys.add(key)
@@ -3384,11 +3694,12 @@ def get_blocked_all(
             "mode": mode,
             "region": canonical if mode == "region" else None,
             "working_group": canonical if mode == "working_group" else None,
+            "page_context": page_context,
             "test_plans_checked": [],
             "combined_jql": combined_jql,
             "total_blocked": 0,
             "results": [],
-            "message": "No test plans found for the given region/working group.",
+            "message": page_context.get("message") if page_context else "No test plans found for the given region/working group.",
             "elapsed_seconds": round(time.time() - _start_time, 2),
         }
 
@@ -3431,10 +3742,12 @@ def get_blocked_all(
         "mode": mode,
         "region": canonical if mode == "region" else None,
         "working_group": canonical if mode == "working_group" else None,
+        "page_context": page_context,
         "test_plans_checked": test_plans,
         "combined_jql": combined_jql,
         "total_blocked": len(results),
         "results": results,
+        "message": page_context.get("message") if page_context else None,
         "elapsed_seconds": round(time.time() - _start_time, 2),
     }
 

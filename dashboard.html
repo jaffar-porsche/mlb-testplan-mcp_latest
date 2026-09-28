@@ -310,6 +310,386 @@
       font-size: 0.8rem;
       color: var(--pds-color-neutral-1);
     }
+    .secret-editor-row {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: end;
+    }
+    .secret-editor-row .field-group {
+      min-width: 220px;
+    }
+    .secret-editor-input {
+      width: 100%;
+      height: 48px;
+      border: 1px solid var(--pds-color-neutral-2);
+      border-radius: var(--pds-border-radius-sm);
+      padding: 0 14px;
+      font-family: var(--pds-font);
+      font-size: 0.95rem;
+      color: var(--pds-color-primary);
+      background: var(--pds-color-surface);
+      outline: none;
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+    }
+    .secret-editor-input:focus {
+      border-color: var(--pds-color-primary);
+      box-shadow: 0 0 0 2px rgba(1,2,5,.12);
+    }
+    .secret-editor-note {
+      margin-top: 12px;
+      font-size: 0.82rem;
+      line-height: 1.5;
+      color: var(--pds-color-neutral-1);
+    }
+    .secret-editor-note strong {
+      color: var(--pds-color-primary);
+    }
+    .page-picker-wrap {
+      display: flex;
+      align-items: stretch;
+      gap: 10px;
+      flex-wrap: wrap;
+      max-width: 520px;
+      position: relative;
+      padding: 10px;
+      border: 1px solid rgba(47,102,144,.12);
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(255,255,255,.98) 0%, rgba(234,239,243,.92) 100%);
+      box-shadow: 0 10px 30px rgba(29,45,63,.08);
+      overflow: visible;
+    }
+    .page-picker-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(135deg, rgba(47,102,144,.08), transparent 42%, rgba(29,45,63,.04));
+      pointer-events: none;
+    }
+    .page-picker-select {
+      flex: 0 1 340px;
+      min-width: 220px;
+      position: relative;
+      z-index: 1;
+      border-radius: 14px;
+      border-color: rgba(47,102,144,.18);
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.96), rgba(242,242,242,.92));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 10px 20px rgba(29,45,63,.08);
+      transition: transform .22s var(--pds-transition), border-color .22s var(--pds-transition), box-shadow .22s var(--pds-transition), background .22s var(--pds-transition);
+    }
+    .page-picker-select:hover {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.34);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 14px 24px rgba(29,45,63,.12);
+    }
+    .page-picker-select:focus {
+      transform: translateY(-1px);
+      border-color: var(--pds-color-brand);
+      box-shadow: 0 0 0 4px rgba(47,102,144,.14), 0 14px 24px rgba(29,45,63,.14);
+    }
+    .page-picker-delete {
+      width: 48px;
+      min-width: 48px;
+      height: 48px;
+      padding: 0;
+      font-size: 1rem;
+      letter-spacing: 0;
+      position: relative;
+      z-index: 1;
+      border-radius: 14px;
+      border-color: rgba(29,45,63,.12);
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(242,242,242,.92));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 10px 18px rgba(29,45,63,.08);
+      transition: transform .22s var(--pds-transition), box-shadow .22s var(--pds-transition), border-color .22s var(--pds-transition), color .22s var(--pds-transition);
+    }
+    .page-picker-delete:hover,
+    .page-picker-delete:focus {
+      transform: translateY(-1px) rotate(-6deg);
+      border-color: rgba(213,0,28,.24);
+      color: var(--pds-color-error);
+      box-shadow: 0 14px 22px rgba(213,0,28,.16);
+    }
+    .page-picker-add-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+      max-width: 520px;
+      padding: 12px;
+      border: 1px solid rgba(47,102,144,.12);
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(242,242,242,.92));
+      box-shadow: 0 12px 28px rgba(29,45,63,.07);
+    }
+    .page-picker-add-row input {
+      flex: 0 1 240px;
+      min-width: 180px;
+      height: 48px;
+      border: 1px solid rgba(47,102,144,.16);
+      border-radius: 14px;
+      padding: 0 16px;
+      font-family: var(--pds-font);
+      font-size: 0.95rem;
+      color: var(--pds-color-primary);
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(248,249,250,.94));
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.9), 0 8px 18px rgba(29,45,63,.05);
+      transition: transform .22s var(--pds-transition), border-color .22s var(--pds-transition), box-shadow .22s var(--pds-transition), background .22s var(--pds-transition);
+    }
+    .page-picker-add-row input:hover {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.28);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 12px 22px rgba(29,45,63,.08);
+    }
+    .page-picker-add-row input:focus {
+      transform: translateY(-1px);
+      border-color: var(--pds-color-brand);
+      background: linear-gradient(180deg, rgba(255,255,255,1), rgba(244,248,251,.98));
+      box-shadow: 0 0 0 4px rgba(47,102,144,.12), 0 14px 24px rgba(29,45,63,.10);
+    }
+    .page-picker-add-row input::placeholder {
+      color: #8a939d;
+      transition: color .22s var(--pds-transition), transform .22s var(--pds-transition);
+    }
+    .page-picker-add-row input:focus::placeholder {
+      color: #a8afb7;
+      transform: translateX(2px);
+    }
+    .page-picker-add-btn {
+      min-width: 126px;
+      height: 48px;
+      border-radius: 14px;
+      border-color: rgba(47,102,144,.18);
+      background: linear-gradient(135deg, rgba(47,102,144,.10), rgba(255,255,255,.96));
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.85), 0 10px 20px rgba(29,45,63,.08);
+      transition: transform .22s var(--pds-transition), box-shadow .22s var(--pds-transition), border-color .22s var(--pds-transition), color .22s var(--pds-transition);
+    }
+    .page-picker-add-btn:hover,
+    .page-picker-add-btn:focus {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.34);
+      color: var(--pds-color-brand);
+      box-shadow: 0 16px 24px rgba(47,102,144,.16);
+    }
+    .page-delete-list {
+      position: absolute;
+      top: calc(100% + 10px);
+      right: 0;
+      width: min(360px, 92vw);
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(242,245,247,.97));
+      border: 1px solid rgba(47,102,144,.14);
+      border-radius: 20px;
+      box-shadow: 0 24px 50px rgba(29,45,63,.18), 0 0 0 1px rgba(255,255,255,.55) inset;
+      padding: 16px;
+      z-index: 40;
+      backdrop-filter: blur(14px);
+      transform-origin: top right;
+      animation: pagePanelIn .22s var(--pds-transition);
+    }
+    .page-delete-list[hidden] {
+      display: none;
+    }
+    @keyframes pagePanelIn {
+      from {
+        opacity: 0;
+        transform: translateY(-6px) scale(.98);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+      }
+    }
+    .page-delete-list-title {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      color: var(--pds-color-brand);
+      margin-bottom: 4px;
+    }
+    .page-delete-list-subtitle {
+      margin-bottom: 12px;
+      font-size: 0.82rem;
+      color: var(--pds-color-neutral-1);
+      line-height: 1.45;
+    }
+    .page-delete-list-items {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+    .page-delete-item {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+      border: 1px solid rgba(47,102,144,.10);
+      border-radius: 16px;
+      padding: 12px 14px;
+      background: linear-gradient(180deg, rgba(255,255,255,.98), rgba(245,247,248,.96));
+      box-shadow: 0 10px 20px rgba(29,45,63,.05);
+      transition: transform .2s var(--pds-transition), border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition);
+    }
+    .page-delete-item:hover {
+      transform: translateY(-1px);
+      border-color: rgba(47,102,144,.22);
+      box-shadow: 0 14px 24px rgba(29,45,63,.08);
+    }
+    .page-delete-item-text {
+      min-width: 0;
+      font-size: 0.82rem;
+      color: var(--pds-color-primary);
+      line-height: 1.35;
+    }
+    .page-delete-item-text strong {
+      display: block;
+      font-size: 0.92rem;
+      letter-spacing: .01em;
+    }
+    .page-delete-item-text span {
+      display: block;
+      color: var(--pds-color-neutral-1);
+    }
+    .page-delete-item-fixed {
+      font-size: 0.72rem;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--pds-color-neutral-1);
+      flex-shrink: 0;
+    }
+    .page-delete-item-main {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    .page-delete-item-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+    .page-delete-rename-btn {
+      height: 36px;
+      min-width: 74px;
+      padding: 0 12px;
+      letter-spacing: 0.04em;
+      font-size: 0.72rem;
+      border-radius: 12px;
+    }
+    .page-delete-secondary-btn {
+      min-width: 72px;
+      height: 36px;
+      padding: 0 12px;
+      letter-spacing: 0.04em;
+      font-size: 0.72rem;
+      border-radius: 12px;
+    }
+    .page-delete-item-btn {
+      min-width: 36px;
+      height: 36px;
+      padding: 0;
+      letter-spacing: 0;
+      flex-shrink: 0;
+      border-radius: 12px;
+    }
+    .page-rename-overlay {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(1,2,5,.48);
+      backdrop-filter: blur(6px);
+      z-index: 1200;
+    }
+    .page-rename-overlay[hidden] {
+      display: none;
+    }
+    .page-rename-dialog {
+      width: min(460px, calc(100vw - 32px));
+      padding: 22px 22px 18px;
+      border: 1px solid rgba(47,102,144,.14);
+      border-radius: 24px;
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(246,249,252,.98));
+      box-shadow: 0 32px 72px rgba(16,24,40,.24), 0 12px 28px rgba(29,45,63,.12);
+      animation: pagePanelIn .2s var(--pds-transition);
+    }
+    .page-rename-dialog-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .page-rename-dialog-title {
+      margin: 0;
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: var(--pds-color-primary);
+      letter-spacing: 0.01em;
+    }
+    .page-rename-dialog-subtitle {
+      margin: 6px 0 0;
+      font-size: 0.78rem;
+      line-height: 1.5;
+      color: var(--pds-color-neutral-1);
+    }
+    .page-rename-dialog-close {
+      border: none;
+      background: transparent;
+      color: var(--pds-color-neutral-1);
+      font-size: 1.45rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0;
+      flex-shrink: 0;
+    }
+    .page-rename-dialog-meta {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(47,102,144,.08);
+      color: var(--pds-color-primary);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+    .page-rename-dialog input {
+      width: 100%;
+      height: 44px;
+      border: 1px solid rgba(47,102,144,.16);
+      border-radius: 14px;
+      padding: 0 14px;
+      font-family: var(--pds-font);
+      font-size: 0.9rem;
+      color: var(--pds-color-primary);
+      background: linear-gradient(180deg, rgba(255,255,255,.99), rgba(248,249,250,.96));
+      outline: none;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.92);
+      transition: border-color .2s var(--pds-transition), box-shadow .2s var(--pds-transition), transform .2s var(--pds-transition);
+    }
+    .page-rename-dialog input:focus {
+      transform: translateY(-1px);
+      border-color: var(--pds-color-brand);
+      box-shadow: 0 0 0 3px rgba(47,102,144,.12), 0 10px 18px rgba(29,45,63,.08);
+    }
+    .page-rename-dialog-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 16px;
+    }
     select {
       width: 100%;
       height: 48px;
@@ -527,10 +907,84 @@
   <div class="field-row">
     <div class="field-group">
       <label class="field-label" for="pageIdSelect">Confluence Source Page</label>
-      <select id="pageIdSelect" onchange="handlePageSelectionChange()">
-        <option value="2378907792">2378907792 - Workstream Applications</option>
-        <option value="2381910576">2381910576 - Workstream Platform</option>
-      </select>
+      <div class="page-picker-wrap">
+        <select id="pageIdSelect" class="page-picker-select" onchange="handlePageSelectionChange()"></select>
+        <button class="btn btn-secondary page-picker-delete" type="button" id="deletePageIdBtn" onclick="toggleDeletePageList()" title="Manage custom page IDs" aria-label="Manage custom page IDs">&#128465;</button>
+        <div id="pageDeleteList" class="page-delete-list" hidden>
+          <div class="page-delete-list-title">Manage Page IDs</div>
+          <div class="page-delete-list-subtitle">Rename labels, review defaults, and remove only the custom entries you no longer need.</div>
+          <div id="pageDeleteListItems" class="page-delete-list-items"></div>
+        </div>
+      </div>
+      <div id="patModalOverlay" class="page-rename-overlay" onclick="closePatModal(event)" hidden>
+        <div class="page-rename-dialog" onclick="event.stopPropagation()">
+          <div class="page-rename-dialog-header">
+            <div>
+              <h3 class="page-rename-dialog-title">Update PAT</h3>
+              <p class="page-rename-dialog-subtitle">Update the local Jira or Confluence PAT. Azure Container Apps still need their own PAT change in Azure separately.</p>
+            </div>
+            <button class="page-rename-dialog-close" type="button" onclick="closePatModal()" aria-label="Close PAT dialog">&times;</button>
+          </div>
+          <div class="secret-editor-row">
+            <div class="field-group">
+              <label class="field-label" for="patTypeSelect">PAT Type</label>
+              <select id="patTypeSelect">
+                <option value="jira">Jira</option>
+                <option value="confluence">Confluence</option>
+              </select>
+            </div>
+            <div class="field-group">
+              <label class="field-label" for="patValueInput">PAT Value</label>
+              <input id="patValueInput" class="secret-editor-input" type="password" placeholder="Paste new PAT value" autocomplete="off" />
+            </div>
+          </div>
+          <div id="patUpdateStatus" class="status" style="margin-top:16px;margin-bottom:0;"></div>
+          <p class="secret-editor-note"><strong>Local only:</strong> this updates the local service <code>.env</code> file and the running dashboard process where possible.</p>
+          <div class="page-rename-dialog-actions">
+            <button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick="closePatModal()">Cancel</button>
+            <button class="btn btn-primary" id="btnUpdatePat" type="button" onclick="updatePatConfig()">Update</button>
+          </div>
+        </div>
+      </div>
+      <div id="pageRenameModalOverlay" class="page-rename-overlay" onclick="closePageRenameModal(event)" hidden>
+        <div class="page-rename-dialog" onclick="event.stopPropagation()">
+          <div class="page-rename-dialog-header">
+            <div>
+              <h3 class="page-rename-dialog-title">Rename Page Label</h3>
+              <p class="page-rename-dialog-subtitle">Update the display name used in the page selector while keeping the original page ID unchanged.</p>
+            </div>
+            <button class="page-rename-dialog-close" type="button" onclick="closePageRenameModal()" aria-label="Close rename dialog">&times;</button>
+          </div>
+          <div id="pageRenameModalPageId" class="page-rename-dialog-meta"></div>
+          <input id="pageRenameModalInput" type="text" aria-label="Rename selected page" />
+          <div class="page-rename-dialog-actions">
+            <button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick="closePageRenameModal()">Cancel</button>
+            <button class="btn btn-secondary page-delete-rename-btn" type="button" onclick="savePageRenameModal()">Save</button>
+          </div>
+        </div>
+      </div>
+      <div id="pageDeleteConfirmOverlay" class="page-rename-overlay" onclick="closePageDeleteConfirm(event)" hidden>
+        <div class="page-rename-dialog" onclick="event.stopPropagation()">
+          <div class="page-rename-dialog-header">
+            <div>
+              <h3 class="page-rename-dialog-title">Delete Page ID</h3>
+              <p class="page-rename-dialog-subtitle">Confirm before removing this custom page ID from your saved list.</p>
+            </div>
+            <button class="page-rename-dialog-close" type="button" onclick="closePageDeleteConfirm()" aria-label="Close delete dialog">&times;</button>
+          </div>
+          <div id="pageDeleteConfirmPageId" class="page-rename-dialog-meta"></div>
+          <p id="pageDeleteConfirmLabel" class="page-rename-dialog-subtitle" style="margin:0 0 16px;color:var(--pds-color-primary);"></p>
+          <div class="page-rename-dialog-actions">
+            <button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick="closePageDeleteConfirm()">Cancel</button>
+            <button class="btn btn-secondary page-delete-rename-btn" type="button" onclick="confirmDeletePageModal()">Delete</button>
+          </div>
+        </div>
+      </div>
+      <div class="page-picker-add-row">
+        <input id="newPageIdInput" type="text" inputmode="text" placeholder="Add new page ID" aria-label="Add new page ID" />
+        <input id="newPageNameInput" type="text" inputmode="text" placeholder="Add page name" aria-label="Add page name" />
+        <button class="btn btn-secondary page-picker-add-btn" type="button" onclick="addPageIdOption()">Add Page ID</button>
+      </div>
       <div class="field-help" id="pageIdHelp">Using Workstream Applications (2378907792).</div>
     </div>
   </div>
@@ -540,13 +994,14 @@
       <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style="flex-shrink:0"><path d="M2 1l9 5-9 5V1z" fill="currentColor"/></svg>
       Analyze
     </button>
+    <button class="btn btn-secondary" type="button" onclick="openPatModal()">Update PAT</button>
     <button class="btn btn-secondary" id="btnAiPrompt" onclick="runAiPrompt()" style="border-color:#8b5cf6;color:#8b5cf6;">Ask AI</button>
-    <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
+    <button class="btn btn-secondary" onclick="document.getElementById('failOverviewLaunchCard').scrollIntoView({behavior:'smooth',block:'start'})" style="display:none;border-color:#6366f1;color:#6366f1;">&#128202; FAIL Overview</button>
     <button class="btn btn-secondary" id="btnPriority" onclick="openPriorityModal()">Priority</button>
     <button class="btn btn-secondary" id="btnFailAll" onclick="openFailAllModal()">FAIL All</button>
     <button class="btn btn-secondary" id="btnBlockedAll" onclick="openBlockedAllModal()">BLOCKED All</button>
     <button class="btn btn-secondary" id="btnCloneConfluence" onclick="cloneConfluence()">Clone Confluence</button>
-    <button class="btn btn-secondary" id="btnSallyTest" onclick="testSallyConnection()" style="border-color:#0d9488;color:#0d9488;">Test Sally</button>
+    <button class="btn btn-secondary" id="btnSallyTest" onclick="testSallyConnection()" style="display:none;border-color:#0d9488;color:#0d9488;">Test Sally</button>
   </div>
   <pre id="aiPromptResult" style="display:none;white-space:pre-wrap;max-height:420px;overflow:auto;margin-top:12px;background:#0d1117;color:#c9d1d9;padding:12px;border-radius:8px;font-size:0.85rem;"></pre>
 </div>
@@ -593,6 +1048,9 @@
         <summary style="cursor:pointer;font-weight:700;color:var(--pds-color-neutral-1);">Combined JQL</summary>
         <code id="failAllJqlText" style="display:block;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--pds-color-primary);"></code>
       </details>
+      <div style="display:flex;justify-content:flex-end;margin:0 0 12px;">
+        <button class="btn btn-primary" id="failAllExportBtn" onclick="exportFailAllExcel()" style="display:none;">Export Excel</button>
+      </div>
       <div id="failAllTableArea"></div>
     </div>
   </div>
@@ -640,6 +1098,9 @@
         <summary style="cursor:pointer;font-weight:700;color:var(--pds-color-neutral-1);">Combined JQL</summary>
         <code id="blockedAllJqlText" style="display:block;white-space:pre-wrap;word-break:break-all;margin-top:8px;color:var(--pds-color-primary);"></code>
       </details>
+      <div style="display:flex;justify-content:flex-end;margin:0 0 12px;">
+        <button class="btn btn-primary" id="blockedAllExportBtn" onclick="exportBlockedAllExcel()" style="display:none;">Export Excel</button>
+      </div>
       <div id="blockedAllTableArea"></div>
     </div>
   </div>
@@ -808,10 +1269,11 @@
 
 <script>
   const BASE = 'http://127.0.0.1:8080';
-  const PAGE_OPTIONS = {
+  const DEFAULT_PAGE_OPTIONS = {
     '2378907792': 'Workstream Applications',
     '2381910576': 'Workstream Platform',
   };
+  let PAGE_OPTIONS = { ...DEFAULT_PAGE_OPTIONS };
   let storedTestPlanKey = null;
 
   // ── DEMO CACHE (TEMPORARY — revert after the demo) ──────────────────────
@@ -970,8 +1432,274 @@
     return PAGE_OPTIONS[getSelectedPageId()] || getSelectedPageId();
   }
 
+  function getStoredCustomPageOptions() {
+    try {
+      const raw = window.localStorage.getItem('customPageOptions');
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        return {};
+      }
+      return parsed;
+    } catch {
+      return {};
+    }
+  }
+
+  function saveCustomPageOptions(customOptions) {
+    window.localStorage.setItem('customPageOptions', JSON.stringify(customOptions));
+  }
+
+  function getStoredPageLabelOverrides() {
+    try {
+      const raw = window.localStorage.getItem('pageLabelOverrides');
+      const parsed = raw ? JSON.parse(raw) : {};
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        return {};
+      }
+      return parsed;
+    } catch {
+      return {};
+    }
+  }
+
+  function saveStoredPageLabelOverrides(overrides) {
+    window.localStorage.setItem('pageLabelOverrides', JSON.stringify(overrides));
+  }
+
+  function updateDeletePageButtonState() {
+    const deleteButton = document.getElementById('deletePageIdBtn');
+    if (!deleteButton) return;
+    deleteButton.disabled = Object.keys(PAGE_OPTIONS).length === 0;
+  }
+
+  function renderPageOptions(selectedPageId) {
+    PAGE_OPTIONS = {
+      ...DEFAULT_PAGE_OPTIONS,
+      ...getStoredCustomPageOptions(),
+      ...getStoredPageLabelOverrides(),
+    };
+    const select = document.getElementById('pageIdSelect');
+    if (!select) return;
+
+    select.innerHTML = Object.entries(PAGE_OPTIONS)
+      .map(([pageId, label]) => `<option value="${pageId}">${pageId} - ${escapeHtml(label)}</option>`)
+      .join('');
+
+    if (selectedPageId && PAGE_OPTIONS[selectedPageId]) {
+      select.value = selectedPageId;
+    }
+    if (!select.value) {
+      select.value = Object.keys(PAGE_OPTIONS)[0] || '2378907792';
+    }
+    renderDeletePageList();
+    updateDeletePageButtonState();
+    handlePageSelectionChange();
+  }
+
   function handlePageSelectionChange() {
     document.getElementById('pageIdHelp').textContent = `Using ${getSelectedPageLabel()} (${getSelectedPageId()}).`;
+    updateDeletePageButtonState();
+  }
+
+  function parsePageIdAndLabel(rawPageId, rawPageName) {
+    const trimmedIdInput = (rawPageId || '').trim();
+    const trimmedNameInput = (rawPageName || '').trim();
+
+    let pageId = trimmedIdInput;
+    let pageLabel = trimmedNameInput;
+
+    const combinedMatch = trimmedIdInput.match(/^(\d+)\s*[-:|]\s*(.+)$/);
+    if (combinedMatch) {
+      pageId = combinedMatch[1].trim();
+      if (!pageLabel) {
+        pageLabel = combinedMatch[2].trim();
+      }
+    }
+
+    return {
+      pageId,
+      pageLabel,
+    };
+  }
+
+  function addPageIdOption() {
+    const idInput = document.getElementById('newPageIdInput');
+    const nameInput = document.getElementById('newPageNameInput');
+    const { pageId, pageLabel } = parsePageIdAndLabel(idInput?.value || '', nameInput?.value || '');
+
+    if (!/^\d+$/.test(pageId)) {
+      document.getElementById('pageIdHelp').textContent = 'Enter a numeric page ID.';
+      return;
+    }
+
+    const customOptions = getStoredCustomPageOptions();
+    const nextLabel = pageLabel || PAGE_OPTIONS[pageId] || 'Custom Page';
+    if (!DEFAULT_PAGE_OPTIONS[pageId]) {
+      customOptions[pageId] = nextLabel;
+      saveCustomPageOptions(customOptions);
+    } else if (pageLabel) {
+      const overrides = getStoredPageLabelOverrides();
+      overrides[pageId] = pageLabel;
+      saveStoredPageLabelOverrides(overrides);
+    }
+
+    if (idInput) idInput.value = '';
+    if (nameInput) nameInput.value = '';
+    renderPageOptions(pageId);
+  }
+
+  function renderDeletePageList() {
+    const container = document.getElementById('pageDeleteListItems');
+    if (!container) return;
+    const customOptions = getStoredCustomPageOptions();
+    const entries = Object.entries(PAGE_OPTIONS);
+    if (!entries.length) {
+      container.innerHTML = '<p class="empty" style="margin:0;">No page IDs available.</p>';
+      return;
+    }
+    container.innerHTML = entries.map(([pageId, label]) => {
+      const isDefault = !!DEFAULT_PAGE_OPTIONS[pageId];
+      const renameActionMarkup = `<button class="btn btn-secondary page-delete-secondary-btn" type="button" onclick='beginManagedPageRename(${JSON.stringify(pageId)})'>Rename</button>`;
+      const defaultActionMarkup = isDefault
+        ? '<span class="page-delete-item-fixed">Default</span>'
+        : `<button class="btn btn-secondary page-delete-item-btn" type="button" onclick='beginManagedPageDelete(${JSON.stringify(pageId)})' title="Delete ${escapeHtml(pageId)}" aria-label="Delete ${escapeHtml(pageId)}">&times;</button>`;
+      const badgeText = isDefault ? 'Built-in page ID' : (customOptions[pageId] || 'Custom Page');
+      return `
+      <div class="page-delete-item">
+        <div class="page-delete-item-main">
+          <div class="page-delete-item-text">
+            <strong>${escapeHtml(pageId)}</strong>
+            <span>${escapeHtml(label)} · ${escapeHtml(badgeText)}</span>
+          </div>
+        </div>
+        <div class="page-delete-item-actions">${renameActionMarkup}${defaultActionMarkup}</div>
+      </div>
+    `;
+    }).join('');
+  }
+
+  let activeRenamePageId = null;
+  let activeDeletePageId = null;
+
+  function beginManagedPageRename(pageId) {
+    activeRenamePageId = pageId;
+    const overlay = document.getElementById('pageRenameModalOverlay');
+    const pageIdLabel = document.getElementById('pageRenameModalPageId');
+    const input = document.getElementById('pageRenameModalInput');
+    if (pageIdLabel) pageIdLabel.textContent = pageId;
+    if (input) input.value = PAGE_OPTIONS[pageId] || '';
+    if (overlay) overlay.hidden = false;
+    if (input) {
+      input.focus();
+      input.select();
+    }
+  }
+
+  function closePageRenameModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'pageRenameModalOverlay') return;
+    activeRenamePageId = null;
+    const overlay = document.getElementById('pageRenameModalOverlay');
+    const input = document.getElementById('pageRenameModalInput');
+    const pageIdLabel = document.getElementById('pageRenameModalPageId');
+    if (overlay) overlay.hidden = true;
+    if (input) input.value = '';
+    if (pageIdLabel) pageIdLabel.textContent = '';
+  }
+
+  function beginManagedPageDelete(pageId) {
+    activeDeletePageId = pageId;
+    const overlay = document.getElementById('pageDeleteConfirmOverlay');
+    const pageIdLabel = document.getElementById('pageDeleteConfirmPageId');
+    const label = document.getElementById('pageDeleteConfirmLabel');
+    if (pageIdLabel) pageIdLabel.textContent = pageId;
+    if (label) label.textContent = PAGE_OPTIONS[pageId] || '';
+    if (overlay) overlay.hidden = false;
+  }
+
+  function closePageDeleteConfirm(evt) {
+    if (evt && evt.target && evt.target.id !== 'pageDeleteConfirmOverlay') return;
+    activeDeletePageId = null;
+    const overlay = document.getElementById('pageDeleteConfirmOverlay');
+    const pageIdLabel = document.getElementById('pageDeleteConfirmPageId');
+    const label = document.getElementById('pageDeleteConfirmLabel');
+    if (overlay) overlay.hidden = true;
+    if (pageIdLabel) pageIdLabel.textContent = '';
+    if (label) label.textContent = '';
+  }
+
+  function toggleDeletePageList() {
+    const panel = document.getElementById('pageDeleteList');
+    if (!panel) return;
+    if (!panel.hidden) {
+      closeDeletePageList();
+      return;
+    }
+    renderDeletePageList();
+    panel.hidden = false;
+  }
+
+  function closeDeletePageList() {
+    const panel = document.getElementById('pageDeleteList');
+    closePageRenameModal();
+    closePageDeleteConfirm();
+    if (panel) {
+      panel.hidden = true;
+    }
+  }
+
+  function removeCustomPageId(pageId) {
+    const customOptions = getStoredCustomPageOptions();
+    const overrides = getStoredPageLabelOverrides();
+    delete customOptions[pageId];
+    delete overrides[pageId];
+    saveCustomPageOptions(customOptions);
+    saveStoredPageLabelOverrides(overrides);
+    const nextPageId = getSelectedPageId() === pageId ? Object.keys(DEFAULT_PAGE_OPTIONS)[0] : getSelectedPageId();
+    renderPageOptions(nextPageId);
+    const panel = document.getElementById('pageDeleteList');
+    if (panel && Object.keys(getStoredCustomPageOptions()).length === 0) {
+      panel.hidden = true;
+    }
+    document.getElementById('pageIdHelp').textContent = `Removed page ID ${pageId}. Using ${getSelectedPageLabel()} (${getSelectedPageId()}).`;
+  }
+
+  function confirmDeletePageModal() {
+    if (!activeDeletePageId) return;
+    const pageId = activeDeletePageId;
+    closePageDeleteConfirm();
+    removeCustomPageId(pageId);
+  }
+
+  function renameManagedPageId(pageId) {
+    const input = document.getElementById('pageRenameModalInput');
+    const nextLabel = (input?.value || '').trim();
+    if (!nextLabel) {
+      document.getElementById('pageIdHelp').textContent = `Enter a page name for ${pageId}.`;
+      return;
+    }
+
+    if (DEFAULT_PAGE_OPTIONS[pageId]) {
+      const overrides = getStoredPageLabelOverrides();
+      overrides[pageId] = nextLabel;
+      saveStoredPageLabelOverrides(overrides);
+    } else {
+      const customOptions = getStoredCustomPageOptions();
+      customOptions[pageId] = nextLabel;
+      saveCustomPageOptions(customOptions);
+    }
+
+    closePageRenameModal();
+    renderPageOptions(getSelectedPageId() === pageId ? pageId : getSelectedPageId());
+    const panel = document.getElementById('pageDeleteList');
+    if (panel) {
+      panel.hidden = false;
+    }
+    document.getElementById('pageIdHelp').textContent = `Updated page name for ${pageId} to ${nextLabel}.`;
+  }
+
+  function savePageRenameModal() {
+    if (!activeRenamePageId) return;
+    renameManagedPageId(activeRenamePageId);
   }
 
   async function fetchConfluenceTestPlans(filters = {}) {
@@ -981,14 +1709,53 @@
     });
     const resp = await fetch(`${BASE}/confluence/testplans?${params.toString()}`);
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-    const data = await resp.json();
-    return data.test_plans || [];
+    return await resp.json();
   }
 
   function extractWorkingGroups(plans) {
     return [...new Set((plans || [])
       .map(item => item.working_group || item.workstream || '')
       .filter(Boolean))].sort((left, right) => left.localeCompare(right));
+  }
+
+  const REGION_BUTTON_ORDER = [
+    'Testing ECE',
+    'Testing NAR',
+    'Testing JPN',
+    'Testing KOR',
+    'Testing TWN',
+    'Testing Hong-Kong',
+    'Testing Macau',
+  ];
+
+  const REGION_BUTTON_LABELS = {
+    'Testing ECE': 'ECE',
+    'Testing NAR': 'NAR',
+    'Testing JPN': 'JPN',
+    'Testing KOR': 'KOR',
+    'Testing TWN': 'TWN',
+    'Testing Hong-Kong': 'Hong Kong',
+    'Testing Macau': 'Macau',
+  };
+
+  function extractRegions(plans) {
+    const seen = new Set();
+    const ordered = [];
+    (plans || []).forEach(item => {
+      const region = (item.region || item.location || '').trim();
+      if (!region || region === '?') return;
+      if (seen.has(region)) return;
+      seen.add(region);
+      ordered.push(region);
+    });
+    return ordered.sort((left, right) => {
+      const leftIndex = REGION_BUTTON_ORDER.indexOf(left);
+      const rightIndex = REGION_BUTTON_ORDER.indexOf(right);
+      if (leftIndex === -1 && rightIndex === -1) return left.localeCompare(right);
+      if (leftIndex === -1) return 1;
+      if (rightIndex === -1) return -1;
+      return leftIndex - rightIndex;
+    });
   }
 
   function escapeHtml(value) {
@@ -1022,6 +1789,19 @@
     ).join('');
   }
 
+  function renderFailAllRegions(regions, pageContext) {
+    const container = document.getElementById('failAllRegionButtons');
+    if (!regions.length) {
+      const message = pageContext?.message || 'No explicit regions were found for the selected page. Use By Working Group.';
+      container.innerHTML = `<p class="empty" style="margin:0;">${escapeHtml(message)}</p>`;
+      return;
+    }
+    container.innerHTML = regions.map(region => {
+      const label = REGION_BUTTON_LABELS[region] || region.replace(/^Testing\s+/i, '');
+      return `<button class="btn btn-secondary" onclick='failAllRun("region", ${JSON.stringify(region)}, ${JSON.stringify(label)})'>${escapeHtml(label)}</button>`;
+    }).join('');
+  }
+
   function renderBlockedAllWorkingGroups(groups) {
     const container = document.getElementById('blockedAllWgButtons');
     if (!groups.length) {
@@ -1033,25 +1813,52 @@
     ).join('');
   }
 
+  function renderBlockedAllRegions(regions, pageContext) {
+    const container = document.getElementById('blockedAllRegionButtons');
+    if (!regions.length) {
+      const message = pageContext?.message || 'No explicit regions were found for the selected page. Use By Working Group.';
+      container.innerHTML = `<p class="empty" style="margin:0;">${escapeHtml(message)}</p>`;
+      return;
+    }
+    container.innerHTML = regions.map(region => {
+      const label = REGION_BUTTON_LABELS[region] || region.replace(/^Testing\s+/i, '');
+      return `<button class="btn btn-secondary" onclick='blockedAllRun("region", ${JSON.stringify(region)}, ${JSON.stringify(label)})'>${escapeHtml(label)}</button>`;
+    }).join('');
+  }
+
   async function loadWorkingGroupsForPriority(region) {
     const container = document.getElementById('priorityWgButtons');
     container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
-    const plans = await fetchConfluenceTestPlans({ region });
-    renderPriorityWorkingGroups(extractWorkingGroups(plans));
+    const data = await fetchConfluenceTestPlans({ region });
+    renderPriorityWorkingGroups(extractWorkingGroups(data.test_plans || []));
   }
 
   async function loadWorkingGroupsForFailAll() {
     const container = document.getElementById('failAllWgButtons');
     container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
-    const plans = await fetchConfluenceTestPlans();
-    renderFailAllWorkingGroups(extractWorkingGroups(plans));
+    const data = await fetchConfluenceTestPlans();
+    renderFailAllWorkingGroups(extractWorkingGroups(data.test_plans || []));
+  }
+
+  async function loadRegionsForFailAll() {
+    const container = document.getElementById('failAllRegionButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading regions…</span>';
+    const data = await fetchConfluenceTestPlans();
+    renderFailAllRegions(extractRegions(data.test_plans || []), data.page_context || null);
   }
 
   async function loadWorkingGroupsForBlockedAll() {
     const container = document.getElementById('blockedAllWgButtons');
     container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading working groups…</span>';
-    const plans = await fetchConfluenceTestPlans();
-    renderBlockedAllWorkingGroups(extractWorkingGroups(plans));
+    const data = await fetchConfluenceTestPlans();
+    renderBlockedAllWorkingGroups(extractWorkingGroups(data.test_plans || []));
+  }
+
+  async function loadRegionsForBlockedAll() {
+    const container = document.getElementById('blockedAllRegionButtons');
+    container.innerHTML = '<span style="color:var(--pds-color-neutral-1);font-size:.85rem;">Loading regions…</span>';
+    const data = await fetchConfluenceTestPlans();
+    renderBlockedAllRegions(extractRegions(data.test_plans || []), data.page_context || null);
   }
 
   // ── Tool 1 – parse keywords (now also resolves test_plan_key via Confluence) ─
@@ -1636,6 +2443,68 @@
     if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') runAnalysis();
   });
 
+  function openPatModal() {
+    const overlay = document.getElementById('patModalOverlay');
+    const input = document.getElementById('patValueInput');
+    const statusBox = document.getElementById('patUpdateStatus');
+    if (statusBox) {
+      statusBox.className = 'status';
+      statusBox.textContent = '';
+    }
+    if (overlay) overlay.hidden = false;
+    if (input) input.focus();
+  }
+
+  function closePatModal(evt) {
+    if (evt && evt.target && evt.target.id !== 'patModalOverlay') return;
+    const overlay = document.getElementById('patModalOverlay');
+    const input = document.getElementById('patValueInput');
+    const statusBox = document.getElementById('patUpdateStatus');
+    if (overlay) overlay.hidden = true;
+    if (input) input.value = '';
+    if (statusBox) {
+      statusBox.className = 'status';
+      statusBox.textContent = '';
+    }
+  }
+
+  async function updatePatConfig() {
+    const patType = document.getElementById('patTypeSelect').value;
+    const patValueInput = document.getElementById('patValueInput');
+    const patValue = patValueInput.value.trim();
+    const statusBox = document.getElementById('patUpdateStatus');
+    const button = document.getElementById('btnUpdatePat');
+
+    if (!patValue) {
+      statusBox.className = 'status show error';
+      statusBox.textContent = 'Enter a PAT value first.';
+      return;
+    }
+
+    statusBox.className = 'status show loading';
+    statusBox.innerHTML = '<div class="spinner"></div><span>Updating local PAT configuration…</span>';
+    button.disabled = true;
+
+    try {
+      const resp = await fetch(`${BASE}/admin/pat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pat_type: patType, pat_value: patValue }),
+      });
+      const data = await resp.json();
+      if (!resp.ok) throw new Error(data.detail || `HTTP ${resp.status}`);
+
+      statusBox.className = 'status show success';
+      statusBox.textContent = `${data.detail} Restart ${data.service_name} locally if it is already running. Azure still needs a separate update.`;
+      patValueInput.value = '';
+    } catch (err) {
+      statusBox.className = 'status show error';
+      statusBox.textContent = 'PAT update failed: ' + err.message;
+    } finally {
+      button.disabled = false;
+    }
+  }
+
   // ── Export helpers ───────────────────────────────────────────────────────
   function _stringifyCell(v) {
     if (v === null || v === undefined) return '';
@@ -2016,6 +2885,63 @@
     XLSX.writeFile(wb, filename);
   }
 
+  function exportFailAllExcel() {
+    const rows = window._lastFailAllResults || [];
+    const label = window._lastFailAllLabel || 'all';
+    if (!rows.length) { alert('No data to export.'); return; }
+
+    const headers = ['Test Key', 'Test Plan Key', 'Working Group', 'Description', 'Executed On', 'Tester', 'Test Exec Key', 'KPM ID', 'Comment'];
+    const wsData = [headers, ...rows.map(r => [
+      r.test_key || '',
+      r.test_plan_key || '',
+      r.working_group || '',
+      r.summary || '',
+      r.executed_on || '',
+      r.tester_name || '',
+      r.test_exec_key || '',
+      r.kpm_id || '',
+      r.comment || '',
+    ])];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [16, 18, 24, 56, 20, 24, 18, 14, 56].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'FAIL All');
+    XLSX.writeFile(wb, `fail_all_${sanitizeFilenamePart(label)}.xlsx`);
+  }
+
+  function exportBlockedAllExcel() {
+    const rows = window._lastBlockedAllResults || [];
+    const label = window._lastBlockedAllLabel || 'all';
+    if (!rows.length) { alert('No data to export.'); return; }
+
+    const headers = ['Test Key', 'Test Plan Key', 'Working Group', 'Description', 'Executed On', 'Tester', 'Test Exec Key', 'KPM ID', 'Comment'];
+    const wsData = [headers, ...rows.map(r => [
+      r.test_key || '',
+      r.test_plan_key || '',
+      r.working_group || '',
+      r.summary || '',
+      r.executed_on || '',
+      r.tester_name || '',
+      r.test_exec_key || '',
+      r.kpm_id || '',
+      r.comment || '',
+    ])];
+
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    ws['!cols'] = [16, 18, 24, 56, 20, 24, 18, 14, 56].map(w => ({ wch: w }));
+    XLSX.utils.book_append_sheet(wb, ws, 'BLOCKED All');
+    XLSX.writeFile(wb, `blocked_all_${sanitizeFilenamePart(label)}.xlsx`);
+  }
+
+  function sanitizeFilenamePart(value) {
+    return String(value || 'all')
+      .trim()
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '') || 'all';
+  }
+
   function exportFailCSV() {
     const rows = window._lastFailResults || [];
     const name = (storedTestPlanKey || 'testplan') + '_Failed.csv';
@@ -2085,9 +3011,16 @@
   }
 
   async function foSelectRegion(region, label) {
-    document.querySelectorAll('#foRegionButtons button').forEach(b => { b.style.background=''; b.style.color='#6366f1'; });
+    document.querySelectorAll('#foRegionButtons button').forEach(b => {
+      b.style.background = '';
+      b.style.color = '#6366f1';
+      b.style.fontWeight = '600';
+      b.style.boxShadow = 'none';
+    });
     event.currentTarget.style.background = '#6366f1';
     event.currentTarget.style.color = '#fff';
+    event.currentTarget.style.fontWeight = '800';
+    event.currentTarget.style.boxShadow = '0 0 0 2px rgba(99,102,241,.28)';
 
     const picker = document.getElementById('foPickerCard');
     const result = document.getElementById('foResultCard');
@@ -2100,11 +3033,15 @@
     picker.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
     try {
-      const plans = await fetchConfluenceTestPlans({ region });
+      const data = await fetchConfluenceTestPlans({ region });
+      const plans = data.test_plans || [];
+      const pageNote = data.page_context?.message || data.message || '';
 
       foSetBanner('foPickerStatus', plans.length ? 'success' : 'error',
-        plans.length ? `✓ ${plans.length} test plan(s) found. Click one to load.` : 'No test plans found for this region.');
-      document.getElementById('foPickerSubtitle').textContent = `${plans.length} test plan(s) in ${label}`;
+        plans.length ? (pageNote || `✓ ${plans.length} test plan(s) found. Click one to load.`) : 'No test plans found for this region.');
+      document.getElementById('foPickerSubtitle').textContent = pageNote
+        ? `${plans.length} working-group test plan(s) shown for this page.`
+        : `${plans.length} test plan(s) in ${label}`;
 
       const grid = document.getElementById('foPickerGrid');
       grid.innerHTML = '';
@@ -2462,13 +3399,17 @@
 
   function openFailAllModal() {
     _failAllMode = null;
+    window._lastFailAllResults = [];
+    window._lastFailAllLabel = '';
     document.getElementById('failAllRegionStep').style.display = 'none';
     document.getElementById('failAllWgStep').style.display = 'none';
     document.getElementById('failAllResultStep').style.display = 'none';
+    document.getElementById('failAllExportBtn').style.display = 'none';
     document.getElementById('failAllModeRegionBtn').style.background = '';
     document.getElementById('failAllModeRegionBtn').style.color = '';
     document.getElementById('failAllModeWgBtn').style.background = '';
     document.getElementById('failAllModeWgBtn').style.color = '';
+    document.getElementById('failAllRegionButtons').innerHTML = '';
     document.getElementById('failAllWgButtons').innerHTML = '';
     document.getElementById('failAllModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _failAllEscHandler);
@@ -2496,7 +3437,9 @@
     regionBtn.style.color = mode === 'region' ? '#fff' : '';
     wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
     wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
-    if (mode === 'working_group') {
+    if (mode === 'region') {
+      await loadRegionsForFailAll();
+    } else if (mode === 'working_group') {
       await loadWorkingGroupsForFailAll();
     }
   }
@@ -2511,6 +3454,7 @@
 
     const resultStep = document.getElementById('failAllResultStep');
     resultStep.style.display = 'block';
+    document.getElementById('failAllExportBtn').style.display = 'none';
     document.getElementById('failAllJqlText').textContent = '';
     document.getElementById('failAllTableArea').innerHTML = '';
     foSetBanner('failAllResultStatus', 'loading', `Fetching all FAILs for ${label} from ${getSelectedPageLabel()}…`);
@@ -2521,13 +3465,16 @@
       const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      const pageNote = data.page_context?.message || data.message || '';
 
       document.getElementById('failAllJqlText').textContent = data.combined_jql || '';
 
       const results = data.results || [];
+      window._lastFailAllResults = results;
+      window._lastFailAllLabel = label;
       if (!results.length) {
         document.getElementById('failAllTableArea').innerHTML = '<p class="empty">No FAIL results found.</p>';
-        foSetBanner('failAllResultStatus', 'success', `No FAILs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        foSetBanner('failAllResultStatus', 'success', pageNote || `No FAILs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
         return;
       }
 
@@ -2543,8 +3490,11 @@
         comment:       r.comment || '',
       }));
       document.getElementById('failAllTableArea').innerHTML = jsonToTable(mapped);
-      foSetBanner('failAllResultStatus', 'success', `✓ ${data.total_fail} FAIL(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+      document.getElementById('failAllExportBtn').style.display = 'inline-flex';
+      foSetBanner('failAllResultStatus', 'success', pageNote || `✓ ${data.total_fail} FAIL(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
+      window._lastFailAllResults = [];
+      window._lastFailAllLabel = '';
       foSetBanner('failAllResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('failAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
     }
@@ -2554,13 +3504,17 @@
 
   function openBlockedAllModal() {
     _blockedAllMode = null;
+    window._lastBlockedAllResults = [];
+    window._lastBlockedAllLabel = '';
     document.getElementById('blockedAllRegionStep').style.display = 'none';
     document.getElementById('blockedAllWgStep').style.display = 'none';
     document.getElementById('blockedAllResultStep').style.display = 'none';
+    document.getElementById('blockedAllExportBtn').style.display = 'none';
     document.getElementById('blockedAllModeRegionBtn').style.background = '';
     document.getElementById('blockedAllModeRegionBtn').style.color = '';
     document.getElementById('blockedAllModeWgBtn').style.background = '';
     document.getElementById('blockedAllModeWgBtn').style.color = '';
+    document.getElementById('blockedAllRegionButtons').innerHTML = '';
     document.getElementById('blockedAllWgButtons').innerHTML = '';
     document.getElementById('blockedAllModalOverlay').style.display = 'block';
     document.addEventListener('keydown', _blockedAllEscHandler);
@@ -2588,7 +3542,9 @@
     regionBtn.style.color = mode === 'region' ? '#fff' : '';
     wgBtn.style.background = mode === 'working_group' ? 'var(--pds-color-brand)' : '';
     wgBtn.style.color = mode === 'working_group' ? '#fff' : '';
-    if (mode === 'working_group') {
+    if (mode === 'region') {
+      await loadRegionsForBlockedAll();
+    } else if (mode === 'working_group') {
       await loadWorkingGroupsForBlockedAll();
     }
   }
@@ -2603,6 +3559,7 @@
 
     const resultStep = document.getElementById('blockedAllResultStep');
     resultStep.style.display = 'block';
+    document.getElementById('blockedAllExportBtn').style.display = 'none';
     document.getElementById('blockedAllJqlText').textContent = '';
     document.getElementById('blockedAllTableArea').innerHTML = '';
     foSetBanner('blockedAllResultStatus', 'loading', `Fetching all BLOCKEDs for ${label} from ${getSelectedPageLabel()}…`);
@@ -2613,13 +3570,16 @@
       const resp = await cachedFetch(url);
       if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
       const data = await resp.json();
+      const pageNote = data.page_context?.message || data.message || '';
 
       document.getElementById('blockedAllJqlText').textContent = data.combined_jql || '';
 
       const results = data.results || [];
+      window._lastBlockedAllResults = results;
+      window._lastBlockedAllLabel = label;
       if (!results.length) {
         document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">No BLOCKED results found.</p>';
-        foSetBanner('blockedAllResultStatus', 'success', `No BLOCKEDs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
+        foSetBanner('blockedAllResultStatus', 'success', pageNote || `No BLOCKEDs found for ${label} on ${getSelectedPageLabel()} (checked ${(data.test_plans_checked||[]).length} test plan(s)) — ${data.elapsed_seconds ?? '?'}s`);
         return;
       }
 
@@ -2635,12 +3595,55 @@
         comment:       r.comment || '',
       }));
       document.getElementById('blockedAllTableArea').innerHTML = jsonToTable(mapped);
-      foSetBanner('blockedAllResultStatus', 'success', `✓ ${data.total_blocked} BLOCKED(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
+      document.getElementById('blockedAllExportBtn').style.display = 'inline-flex';
+      foSetBanner('blockedAllResultStatus', 'success', pageNote || `✓ ${data.total_blocked} BLOCKED(s) for ${label} on ${getSelectedPageLabel()} across ${(data.test_plans_checked||[]).length} test plan(s) — ${data.elapsed_seconds ?? '?'}s`);
     } catch (err) {
+      window._lastBlockedAllResults = [];
+      window._lastBlockedAllLabel = '';
       foSetBanner('blockedAllResultStatus', 'error', 'Failed: ' + err.message);
       document.getElementById('blockedAllTableArea').innerHTML = '<p class="empty">Could not load data.</p>';
     }
   }
+
+  renderPageOptions(getSelectedPageId());
+
+  const pagePickerWrap = document.querySelector('.page-picker-wrap');
+  if (pagePickerWrap) {
+    pagePickerWrap.addEventListener('click', (event) => {
+      event.stopPropagation();
+    });
+  }
+
+  document.addEventListener('click', (event) => {
+    const panel = document.getElementById('pageDeleteList');
+    if (!panel || panel.hidden) return;
+    const target = event.target;
+    if (target instanceof Element && (target.closest('#pageRenameModalOverlay') || target.closest('#pageDeleteConfirmOverlay'))) {
+      return;
+    }
+    closeDeletePageList();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') {
+      const patOverlay = document.getElementById('patModalOverlay');
+      const deleteOverlay = document.getElementById('pageDeleteConfirmOverlay');
+      const renameOverlay = document.getElementById('pageRenameModalOverlay');
+      if (patOverlay && !patOverlay.hidden) {
+        closePatModal();
+        return;
+      }
+      if (deleteOverlay && !deleteOverlay.hidden) {
+        closePageDeleteConfirm();
+        return;
+      }
+      if (renameOverlay && !renameOverlay.hidden) {
+        closePageRenameModal();
+        return;
+      }
+      closeDeletePageList();
+    }
+  });
 
 </script>
 </div><!-- /.pds-page -->
