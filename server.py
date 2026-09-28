@@ -855,6 +855,60 @@ def _build_market_context(page_title: str, body: str, has_explicit_regions: bool
     }
 
 
+def _extract_page_jql_labels(body: str) -> dict[str, set[str]]:
+    jira_pattern = re.compile(r"\b([A-Z][A-Z0-9]+-\d+)\b")
+    jql_pattern = re.compile(r'ac:name="jqlQuery">(.*?)</ac:parameter>', re.DOTALL)
+
+    key_labels: dict[str, set[str]] = {}
+    for raw_query in jql_pattern.findall(body or ""):
+        query = _html.unescape(raw_query).strip()
+        keys_in_query = jira_pattern.findall(query)
+        if not keys_in_query:
+            continue
+        owner_key = keys_in_query[0]
+        key_labels.setdefault(owner_key, set()).add(_classify_jql_label(query))
+    return key_labels
+
+
+def _prune_total_scope_only_keys(
+    key_region: dict[str, str],
+    key_wg: dict[str, str],
+    key_jql_labels: dict[str, set[str]],
+) -> tuple[dict[str, str], dict[str, str]]:
+    grouped_keys: dict[tuple[str, str], list[str]] = {}
+    all_keys = set(key_region.keys()) | set(key_wg.keys()) | set(key_jql_labels.keys())
+
+    for key in all_keys:
+        region = key_region.get(key, "")
+        working_group = key_wg.get(key, "")
+        if not region or not working_group:
+            continue
+        grouped_keys.setdefault((region, working_group), []).append(key)
+
+    stale_keys: set[str] = set()
+    for keys in grouped_keys.values():
+        if len(keys) < 2:
+            continue
+        has_rich_key = any(
+            any(label != "Total Scope" for label in key_jql_labels.get(key, set()))
+            for key in keys
+        )
+        if not has_rich_key:
+            continue
+        for key in keys:
+            labels = key_jql_labels.get(key, set())
+            if labels and labels <= {"Total Scope"}:
+                stale_keys.add(key)
+
+    if not stale_keys:
+        return key_region, key_wg
+
+    return (
+        {key: value for key, value in key_region.items() if key not in stale_keys},
+        {key: value for key, value in key_wg.items() if key not in stale_keys},
+    )
+
+
 def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, page_id: str = None):
     """
     Fetch the Confluence SOP page and find the Test Plan key that matches the
@@ -1130,6 +1184,9 @@ def _extract_test_plan_key_from_confluence(filters: dict, debug: bool = False, p
                 region_token = _extract_region_token_from_text(summary)
                 if region_token:
                     key_region[key] = region_token
+
+        key_jql_labels = _extract_page_jql_labels(body)
+        key_region, key_wg = _prune_total_scope_only_keys(key_region, key_wg, key_jql_labels)
 
         if debug:
             combined = []
@@ -1704,6 +1761,13 @@ def _build_confluence_testplan_entries(page_id: str) -> list[dict]:
         key_jqls.setdefault(owner_key, {})
         # Keep first occurrence per label (avoids overwriting with duplicate rows)
         key_jqls[owner_key].setdefault(label, query)
+
+    label_sets = {key: set(labels.keys()) for key, labels in key_jqls.items()}
+    key_region, key_wg = _prune_total_scope_only_keys(key_region, key_wg, label_sets)
+    key_jqls = {
+        key: value for key, value in key_jqls.items()
+        if key in key_region or key in key_wg
+    }
 
     all_keys = set(key_jqls.keys()) | set(key_region.keys()) | set(key_wg.keys())
 
